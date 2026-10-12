@@ -2,7 +2,8 @@
 
 This guide walks you through the Solar & EV Energy Optimizer: first as a user (what it can do and how to try
 each feature), then as a reviewer (every assumption that was made and needs checking), and finally as a
-developer (what lives in which module, how it works and why it was built that way).
+developer (what lives in which module, how it works and why it was built that way). Every formula, and where
+each piece of data is stored and for how long, is explained in [calculations.md](calculations.md).
 
 Contents:
 

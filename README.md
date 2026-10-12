@@ -15,7 +15,8 @@ letting the LLM do arithmetic.
 ![Example answer](docs/img/ask-demo.svg)
 
 New here? The [project guide](guide.md) walks through every feature, the assumptions behind the numbers and
-what each module does.
+what each module does; [calculations.md](calculations.md) explains every formula and where each piece of data is
+stored.
 
 ## What it does
 
