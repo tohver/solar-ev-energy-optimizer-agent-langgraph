@@ -743,15 +743,27 @@ Implementation notes:
   charging 11:00-14:00 for a 07:00 deadline and did not mention that prices were estimated. This is the
   motivation for the deterministic scheduler in phase 5.
 
-### Phase 4: Real electricity prices
-- [ ] `PriceProvider` protocol; Energy-Charts and aWATTar providers; estimate provider
-- [ ] Tariff conversion (spot → retail) with configurable surcharges and VAT; negative prices
-- [ ] 15-min → hourly aggregation, DST-safe; dynamic period labels
-- [ ] Disk cache for past days; retries and timeouts
-- [ ] Recorded fixtures and contract tests; one integration test
-- [ ] Update `calculate_energy_savings` (EUR, no demand charge, self-consumption value)
+### Phase 4: Real electricity prices ✅
+- [x] `PriceProvider` protocol; Energy-Charts and aWATTar providers; estimate provider
+- [x] Tariff conversion (spot → retail) with configurable surcharges and VAT; negative prices
+- [x] 15-min → hourly aggregation, DST-safe; dynamic period labels
+- [x] Disk cache for past days; retries and timeouts
+- [x] Recorded fixtures and contract tests; one integration test
+- [x] Update `calculate_energy_savings` (EUR, no demand charge, self-consumption value)
 - **Done when:** `energy-advisor ask "What do I pay per kWh tomorrow at 19:00?"` returns the real price with
   source and attribution, and the offline tests cover all fallback paths.
+
+Implementation notes:
+- Chain: Energy-Charts (15-minute slots) → aWATTar (hourly) → estimate (weighted 7-day profile from the same
+  real providers) → synthetic profile. Every result carries `source`, `is_estimate` and, for real data,
+  the CC BY 4.0 attribution.
+- Energy-Charts returned HTTP 429 after a burst of manual test requests: the SQLite cache
+  (`data/price_cache.sqlite`, decorator around each real provider) stores every published slot, because
+  published day-ahead prices never change.
+- A range spanning several days is first requested in one call; if tomorrow is not published yet, each local
+  day is resolved separately, so today keeps real prices and only the missing day is estimated.
+- Energy-Charts' `end` parameter is inclusive (one slot too many without `end - 1s`).
+- The household history (`seed-db`) is now costed with the real hourly prices of each past hour.
 
 ### Phase 5: Optimization tools
 - [ ] `estimate_pv_generation`, `find_cheapest_window` (unit-tested, including negative prices and deadlines

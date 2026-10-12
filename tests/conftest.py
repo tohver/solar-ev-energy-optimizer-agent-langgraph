@@ -52,6 +52,7 @@ def settings(tmp_path: Path) -> Settings:
             vectorstore=tmp_path / "vectorstore",
             knowledge_base=PROJECT_ROOT / "knowledge_base",
             reports=tmp_path / "reports",
+            price_cache=tmp_path / "price_cache.sqlite",
         ),
     )
 

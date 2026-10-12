@@ -60,3 +60,22 @@ def test_agent_answers_end_to_end(live_settings, repo):
     result = advisor.invoke("Say hello.")
     assert final_answer(result)
     assert "error" not in result
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("provider", ["energy_charts", "awattar"])
+def test_live_day_ahead_prices(provider):
+    from datetime import datetime, timedelta
+
+    import httpx
+
+    from energy_advisor.clients.prices.awattar import AwattarProvider
+    from energy_advisor.clients.prices.energy_charts import EnergyChartsProvider
+    from energy_advisor.timeutils import day_bounds_utc
+
+    tz = LocationSettings().tz
+    yesterday = datetime.now(tz).date() - timedelta(days=1)
+    http = httpx.Client(timeout=30)
+    source = EnergyChartsProvider(http) if provider == "energy_charts" else AwattarProvider(http)
+    prices = source.fetch(*day_bounds_utc(yesterday, yesterday, tz))
+    assert len(prices) in (23, 24, 25, 92, 96, 100)  # hourly or 15-minute slots, DST days included

@@ -4,8 +4,12 @@ from dataclasses import dataclass
 
 import httpx
 
-from energy_advisor.clients.open_meteo import OpenMeteoClient
+from energy_advisor.clients.open_meteo import OpenMeteoClient, default_http_client
+from energy_advisor.clients.prices.awattar import AwattarProvider
 from energy_advisor.clients.prices.base import PriceProvider
+from energy_advisor.clients.prices.cache import CachedPriceProvider
+from energy_advisor.clients.prices.energy_charts import EnergyChartsProvider
+from energy_advisor.clients.prices.estimate import EstimatePriceProvider
 from energy_advisor.clients.prices.synthetic import SyntheticPriceProvider
 from energy_advisor.config import Settings
 from energy_advisor.data.repository import EnergyRepository
@@ -27,8 +31,22 @@ class Services:
     clock: Clock
 
 
-def build_price_providers(settings: Settings, http: httpx.Client | None) -> list[PriceProvider]:
-    return [SyntheticPriceProvider(settings.location.tz)]
+def build_price_providers(settings: Settings, http: httpx.Client | None, clock: Clock) -> list[PriceProvider]:
+    """Real providers (cached) -> estimate from their history -> synthetic profile as last resort."""
+    http = http or default_http_client(settings.prices.http_timeout_s)
+    available: dict[str, PriceProvider] = {
+        "energy_charts": EnergyChartsProvider(http, settings.location.bidding_zone),
+        "awattar": AwattarProvider(http),
+    }
+    real: list[PriceProvider] = [
+        CachedPriceProvider(available[name], settings.paths.price_cache) for name in settings.prices.providers
+    ]
+    tz = settings.location.tz
+    return [
+        *real,
+        EstimatePriceProvider(real, tz, clock, settings.prices.estimate_lookback_days),
+        SyntheticPriceProvider(tz),
+    ]
 
 
 def build_services(
@@ -44,7 +62,7 @@ def build_services(
         repository=EnergyRepository(settings.paths.db),
         weather=WeatherService(OpenMeteoClient(http), settings.location, clock),
         prices=PriceService(
-            price_providers or build_price_providers(settings, http),
+            price_providers or build_price_providers(settings, http, clock),
             settings.tariff,
             settings.location,
             clock,

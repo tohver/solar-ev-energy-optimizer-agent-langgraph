@@ -68,10 +68,12 @@ class PriceService:
         self._clock = clock
 
     # ------------------------------------------------------------------ core
-    def spot_prices(self, start: datetime, end: datetime) -> tuple[list[SpotPrice], PriceProvider, list[str]]:
+    def spot_prices(
+        self, start: datetime, end: datetime, providers: Sequence[PriceProvider] | None = None
+    ) -> tuple[list[SpotPrice], PriceProvider, list[str]]:
         """First provider in the chain that covers ``[start, end)`` completely."""
         notes = []
-        for provider in self._providers:
+        for provider in providers or self._providers:
             try:
                 prices = [p for p in provider.fetch(start, end) if start <= p.start < end]
                 if coverage(prices, start, end) < MIN_COVERAGE:
@@ -83,7 +85,30 @@ class PriceService:
         raise PriceUnavailableError("No price provider could deliver prices. " + " | ".join(notes))
 
     def curve(self, start: datetime, end: datetime) -> PriceCurve:
-        prices, provider, failures = self.spot_prices(start, end)
+        """Prices for ``[start, end)``. A multi-day range is first requested in one call from the real
+        providers; if that fails (e.g. tomorrow is not published yet), each local day is resolved on its
+        own, so today keeps real prices and only tomorrow is estimated."""
+        days = sorted({h.astimezone(self._tz).date() for h in (start, end - timedelta(seconds=1))})
+        if days[0] == days[-1]:
+            return self._single_curve(start, end)
+        real = [p for p in self._providers if not p.is_estimate]
+        if real:
+            try:
+                return self._single_curve(start, end, real)
+            except PriceUnavailableError:
+                logger.info("Range not fully published; resolving day by day")
+        parts = []
+        day = days[0]
+        while day <= days[-1]:
+            day_start, day_end = day_bounds_utc(day, day, self._tz)
+            parts.append(self._single_curve(max(start, day_start), min(end, day_end)))
+            day += timedelta(days=1)
+        return merge_curves(parts)
+
+    def _single_curve(
+        self, start: datetime, end: datetime, providers: Sequence[PriceProvider] | None = None
+    ) -> PriceCurve:
+        prices, provider, failures = self.spot_prices(start, end, providers)
         slots = [
             PriceSlot(p.start, p.end, p.eur_per_mwh, retail_price(p.eur_per_mwh, self._tariff))
             for p in prices
@@ -109,6 +134,20 @@ class PriceService:
         day_obj = parse_day(day) if day else self._clock().astimezone(self._tz).date()
         curve = self.day_curve(day_obj)
         return price_output(curve, day_obj, self._tz, self._location, self._tariff)
+
+
+def merge_curves(parts: Sequence[PriceCurve]) -> PriceCurve:
+    sources = list(dict.fromkeys(p.source for p in parts))
+    notes = list(dict.fromkeys(n for p in parts for n in p.notes))
+    return PriceCurve(
+        start=parts[0].start,
+        end=parts[-1].end,
+        slots=[s for p in parts for s in p.slots],
+        source=" + ".join(sources),
+        is_estimate=any(p.is_estimate for p in parts),
+        attribution=next((p.attribution for p in parts if p.attribution), None),
+        notes=notes,
+    )
 
 
 def estimate_note(source: str) -> str:

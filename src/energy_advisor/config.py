@@ -7,6 +7,7 @@ with a double underscore, e.g. ``LLM__MODEL=gpt-4o`` or ``TARIFF__SURCHARGES_EUR
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
@@ -62,6 +63,16 @@ class TariffSettings(BaseModel):
     )
 
 
+class PriceSettings(BaseModel):
+    """Where prices come from. Real providers are tried in order; then an estimate; then a synthetic profile."""
+
+    providers: list[Literal["energy_charts", "awattar"]] = Field(
+        default_factory=lambda: ["energy_charts", "awattar"]
+    )
+    estimate_lookback_days: int = 7
+    http_timeout_s: float = 20.0
+
+
 class HouseholdSettings(BaseModel):
     """The demo household: used to generate its history and in calculations."""
 
@@ -105,6 +116,7 @@ class PathSettings(BaseModel):
     vectorstore: Path = PROJECT_ROOT / "data" / "vectorstore"
     knowledge_base: Path = PROJECT_ROOT / "knowledge_base"
     reports: Path = PROJECT_ROOT / "reports"
+    price_cache: Path = PROJECT_ROOT / "data" / "price_cache.sqlite"
 
 
 class Settings(BaseSettings):
@@ -121,6 +133,7 @@ class Settings(BaseSettings):
 
     location: LocationSettings = LocationSettings()
     tariff: TariffSettings = TariffSettings()
+    prices: PriceSettings = PriceSettings()
     household: HouseholdSettings = HouseholdSettings()
     llm: LLMSettings = LLMSettings()
     rag: RAGSettings = RAGSettings()
