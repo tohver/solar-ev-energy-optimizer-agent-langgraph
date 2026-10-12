@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, delete, func, select
+from sqlalchemy import Engine, create_engine, func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -48,13 +48,6 @@ class EnergyRepository:
         Base.metadata.drop_all(self.engine)
         Base.metadata.create_all(self.engine)
         return counts
-
-    def clear(self) -> dict[str, int]:
-        """Delete all rows (keeps the schema), so re-seeding never duplicates data."""
-        with self.session() as s:
-            usage = s.execute(delete(EnergyUsage)).rowcount
-            solar = s.execute(delete(SolarGeneration)).rowcount
-        return {"energy_usage": usage, "solar_generation": solar}
 
     def add_all(self, rows: Sequence[EnergyUsage | SolarGeneration]) -> int:
         """Insert many rows in a single transaction."""

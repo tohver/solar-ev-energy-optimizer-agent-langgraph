@@ -17,6 +17,6 @@ def make_chat_model(settings: Settings, model: str | None = None) -> ChatOpenAI:
 def make_embeddings(settings: Settings) -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
         model=settings.llm.embedding_model,
-        api_key=settings.require_api_key(),
-        base_url=settings.openai_base_url,
+        openai_api_key=settings.require_api_key(),
+        openai_api_base=settings.openai_base_url,
     )

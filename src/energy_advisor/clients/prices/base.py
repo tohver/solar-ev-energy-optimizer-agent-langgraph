@@ -7,9 +7,14 @@ from energy_advisor.domain.prices import SpotPrice
 
 
 class PriceProvider(Protocol):
-    name: str
-    is_estimate: bool
-    attribution: str | None
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def is_estimate(self) -> bool: ...
+
+    @property
+    def attribution(self) -> str | None: ...
 
     def fetch(self, start: datetime, end: datetime) -> list[SpotPrice]:
         """Spot prices for slots starting in the UTC interval ``[start, end)``.

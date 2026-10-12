@@ -10,7 +10,7 @@ from energy_advisor.config import Settings
 from energy_advisor.domain.household import base_load_kw
 from energy_advisor.domain.solar import pv_energy_kwh
 from energy_advisor.optimization.scheduling import Schedule, ScheduleError, Slot, find_cheapest_schedule
-from energy_advisor.services.prices import PriceService
+from energy_advisor.services.prices import PriceCurve, PriceService
 from energy_advisor.services.weather import WeatherService
 from energy_advisor.timeutils import Clock, floor_hour, parse_local_datetime, to_utc
 
@@ -152,12 +152,13 @@ class OptimizerService:
         interruptible: bool,
         earliest: datetime,
         latest: datetime,
-        curve: Any,
+        curve: PriceCurve,
         solar_source: str,
         notes: list[str],
     ) -> dict[str, Any]:
-        fmt = "%Y-%m-%d %H:%M"
-        local = lambda t: t.astimezone(self._tz).strftime(fmt)  # noqa: E731
+        def local(t: datetime) -> str:
+            return t.astimezone(self._tz).strftime("%Y-%m-%d %H:%M")
+
         return {
             "device": device,
             "energy_kwh": energy_kwh,

@@ -7,12 +7,16 @@ from typing import Any, Protocol
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
+from energy_advisor.timeutils import calendar_lines
+
 logger = logging.getLogger(__name__)
 
 RESPONSE_METRICS = ("accuracy", "relevance", "completeness", "usefulness")
 
 JUDGE_PROMPT = """You are a strict evaluator of an AI energy advisor.
-Today is {today}. Dates such as "tomorrow" or weekday names must be consistent with this date.
+Now: {today}. Calendar: {calendar}.
+Dates such as "tomorrow" or weekday names must be consistent with this calendar. Check chronology carefully:
+a schedule is only wrong if it ENDS AFTER the user's deadline or starts in the past.
 Use the TOOL OUTPUTS as ground truth: penalize accuracy for numbers, dates, hours or cited sources that are not
 supported by them (invented sources or wrong dates are serious errors, score accuracy <= 0.5).
 Rate the ACTUAL RESPONSE for the QUESTION, using the EXPECTED RESPONSE description as the reference.
@@ -61,7 +65,9 @@ class ResponseEval(BaseModel):
 
 
 class Scorer(Protocol):
-    def invoke(self, prompt: str) -> Any: ...
+    """Anything with ``invoke(prompt)``: a structured-output chat model or a test fake."""
+
+    def invoke(self, input: Any, /) -> Any: ...
 
 
 class LLMJudge:
@@ -83,7 +89,8 @@ class LLMJudge:
                     expected=expected,
                     actual=answer,
                     tools=tool_outputs or "(not provided)",
-                    today=f"{today:%A, %Y-%m-%d}",
+                    today=f"{today:%A, %Y-%m-%d %H:%M}",
+                    calendar=calendar_lines(today),
                 )
             )
             metrics = {m: round(min(1.0, max(0.0, float(getattr(scores, m)))), 2) for m in RESPONSE_METRICS}

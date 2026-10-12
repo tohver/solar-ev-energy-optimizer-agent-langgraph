@@ -46,7 +46,7 @@ class SyntheticPriceProvider:
             local = hour.astimezone(self._tz)
             rng = random.Random(seed_for("price", local.date()))
             level = rng.uniform(0.8, 1.2)  # the same level for the whole local day
-            base = TYPICAL_EUR_PER_MWH[local.hour]
+            base: float = TYPICAL_EUR_PER_MWH[local.hour]
             if local.hour in MIDDAY_HOURS:
                 base *= SEASONAL_MIDDAY_FACTOR.get(local.month, 1.0)
             noise = random.Random(seed_for("price", hour)).uniform(-6, 6)

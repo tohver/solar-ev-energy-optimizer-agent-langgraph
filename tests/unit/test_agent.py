@@ -109,3 +109,12 @@ def test_from_settings_needs_an_api_key(settings, services):
 
     with pytest.raises(MissingApiKeyError):
         EnergyAdvisor.from_settings(settings.model_copy(update={"openai_api_key": None}), services)
+
+
+def test_ablation_removes_the_optimizer_tools_and_prompt_sections(services):
+    from energy_advisor.agent.prompts import build_system_prompt
+
+    without = {t.name for t in build_tools(services, optimizer=False)}
+    assert without == EXPECTED_TOOLS - {"find_cheapest_window", "estimate_pv_generation"}
+    assert "find_cheapest_window" not in build_system_prompt(optimizer=False)
+    assert "find_cheapest_window" in build_system_prompt(optimizer=True)

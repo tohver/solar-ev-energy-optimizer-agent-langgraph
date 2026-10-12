@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import chromadb
+from chromadb.api import ClientAPI
 from chromadb.config import Settings as ChromaSettings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -30,14 +31,14 @@ class IndexResult:
     persist_dir: Path
 
 
-def make_chroma_client(persist_dir: Path) -> chromadb.ClientAPI:
+def make_chroma_client(persist_dir: Path) -> ClientAPI:
     persist_dir.mkdir(parents=True, exist_ok=True)
     return chromadb.PersistentClient(
         path=str(persist_dir), settings=ChromaSettings(anonymized_telemetry=False)
     )
 
 
-def collection_exists(client: chromadb.ClientAPI, name: str) -> bool:
+def collection_exists(client: ClientAPI, name: str) -> bool:
     return any(getattr(c, "name", c) == name for c in client.list_collections())
 
 

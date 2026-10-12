@@ -72,7 +72,7 @@ class PriceService:
         self, start: datetime, end: datetime, providers: Sequence[PriceProvider] | None = None
     ) -> tuple[list[SpotPrice], PriceProvider, list[str]]:
         """First provider in the chain that covers ``[start, end)`` completely."""
-        notes = []
+        notes: list[str] = []
         for provider in providers or self._providers:
             try:
                 prices = [p for p in provider.fetch(start, end) if start <= p.start < end]
@@ -172,7 +172,7 @@ def price_output(
     hourly = curve.hourly()
     retail = [r for _, _, r in hourly]
     periods = assign_periods(retail)
-    rows = [
+    rows: list[dict[str, Any]] = [
         {
             "hour": hour.astimezone(tz).hour,
             "time": hour.astimezone(tz).isoformat(timespec="minutes"),

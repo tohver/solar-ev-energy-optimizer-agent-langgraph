@@ -71,6 +71,7 @@ def test_judge_clamps_scores_and_includes_date_in_prompt():
     assert (e.accuracy, e.usefulness) == (0.8, 1.0)
     assert e.overall == pytest.approx(0.85)
     assert "Monday, 2026-10-12" in scorer.prompts[0]
+    assert "Tuesday = 2026-10-13 (tomorrow)" in scorer.prompts[0]
 
 
 def test_judge_failure_scores_zero_without_raising():

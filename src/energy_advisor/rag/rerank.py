@@ -20,7 +20,9 @@ class RerankScores(BaseModel):
 
 
 class Scorer(Protocol):
-    def invoke(self, prompt: str) -> Any: ...
+    """Anything with ``invoke(prompt)``: a structured-output chat model or a test fake."""
+
+    def invoke(self, input: Any, /) -> Any: ...
 
 
 def build_prompt(query: str, passages: list[Passage]) -> str:

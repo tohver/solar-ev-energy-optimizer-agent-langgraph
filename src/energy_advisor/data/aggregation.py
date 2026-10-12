@@ -53,7 +53,7 @@ def summarize_usage(records: Sequence[EnergyUsage], tz: ZoneInfo, days_in_range:
     for g in (*by_type.values(), *by_name.values()):
         g["avg_kwh_per_day"] = round(g["consumption_kwh"] / days, 2)
         g["avg_price_eur_per_kwh"] = (
-            round(g["cost_eur"] / g["consumption_kwh"], 4) if g["consumption_kwh"] else None
+            round(g["cost_eur"] / g["consumption_kwh"], 4) if g["consumption_kwh"] else 0.0
         )
 
     total_kwh = sum(r.consumption_kwh for r in records)

@@ -69,14 +69,13 @@ class WeatherService:
     # ------------------------------------------------------------------ data
     def series(self, first_day: date, last_day: date, place: str | None = None) -> WeatherSeries:
         """Hourly weather for local days ``first_day..last_day`` (past ~3 months to +16 days)."""
+        fallback_note: str | None = None
         try:
             loc = self.resolve(place)
         except Exception as exc:
             logger.warning("Location %r could not be resolved: %s", place, exc)
             loc = ResolvedLocation(self._home.name, self._home.latitude, self._home.longitude, self._home.tz)
             fallback_note = f"Location '{place}' not found ({type(exc).__name__}); using {self._home.name}."
-        else:
-            fallback_note = None
 
         start, end = day_bounds_utc(first_day, last_day, loc.tz)
         expected = int((end - start) / HOUR)

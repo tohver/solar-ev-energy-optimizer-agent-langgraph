@@ -12,7 +12,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from energy_advisor.agent.prompts import SYSTEM_PROMPT
+from energy_advisor.agent.prompts import SYSTEM_PROMPT, build_system_prompt
 from energy_advisor.agent.tools import build_tools
 from energy_advisor.config import Settings
 from energy_advisor.llm import make_chat_model
@@ -33,7 +33,9 @@ def build_system_context(now: datetime, context: str | None = None) -> str:
     return f"{text}\n{context}" if context else text
 
 
-def build_graph(llm: BaseChatModel, tools: Sequence[BaseTool], instructions: str) -> CompiledStateGraph:
+def build_graph(
+    llm: BaseChatModel, tools: Sequence[BaseTool], instructions: str
+) -> CompiledStateGraph[Any, Any, Any, Any]:
     llm_with_tools = llm.bind_tools(list(tools))
 
     def agent_node(state: MessagesState) -> dict[str, Any]:
@@ -75,14 +77,15 @@ class EnergyAdvisor:
         cls,
         settings: Settings,
         services: Services | None = None,
-        instructions: str = SYSTEM_PROMPT,
+        instructions: str | None = None,
         model: str | None = None,
+        optimizer: bool = True,
     ) -> "EnergyAdvisor":
         services = services or build_services(settings)
         return cls(
             llm=make_chat_model(settings, model),
-            tools=build_tools(services),
-            instructions=instructions,
+            tools=build_tools(services, optimizer=optimizer),
+            instructions=instructions or build_system_prompt(optimizer),
             default_context=(
                 f"Household location: {settings.location.name} (time zone {settings.location.timezone}). "
                 "All times are local."

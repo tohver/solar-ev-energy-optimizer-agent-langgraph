@@ -785,10 +785,21 @@ Implementation notes:
 - `search_energy_tips` is now part of every case's expected tools, because the system prompt requires it for
   every answer; otherwise the tool-appropriateness metric punished following the prompt.
 
-### Phase 6: Quality hardening
-- [ ] Agent-graph tests with a fake LLM; coverage report in CI
-- [ ] mypy on `src/` (strict, or a documented subset)
-- [ ] Logging review; error-message review (what the LLM sees)
+### Phase 6: Quality hardening ✅
+- [x] Agent-graph tests with a fake LLM; coverage report in CI
+- [x] mypy on `src/` (strict, or a documented subset)
+- [x] Logging review; error-message review (what the LLM sees)
+
+Implementation notes:
+- mypy runs in strict mode on the whole package (54 files) in CI and pre-commit; only the matplotlib chart
+  module has three error codes relaxed, because the pandas/matplotlib stubs reject valid array-likes.
+- Price providers are a `Protocol` with read-only properties, so plain classes with class attributes satisfy it.
+- Coverage is 96%; CI fails below 85%.
+- Evaluation: the first comparison (phase-4 code vs. phase-5 code, judge gpt-4o-mini) showed no accuracy gain.
+  The judge misread chronology (it marked a schedule on Oct 13 as "after the Oct 19 deadline") and the agent
+  often skipped the new tool. Changes: the judge gets the same calendar as the agent and defaults to a stronger
+  model (gpt-4.1); the prompt is built from parts so `eval --no-optimizer` runs an ablation with the same agent,
+  prompt and judge; tool descriptions route scheduling questions to `find_cheapest_window`.
 
 ### Phase 7: Evaluation and presentation
 - [ ] Run `energy-advisor eval`; commit the curated report and heatmap to `docs/`

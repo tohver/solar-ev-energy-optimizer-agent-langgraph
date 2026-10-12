@@ -132,6 +132,7 @@ def ask(
         str | None, typer.Option(help="Extra context; defaults to the configured location.")
     ] = None,
     show_tools: Annotated[bool, typer.Option(help="Print the tool calls the agent made.")] = True,
+    export_svg: Annotated[Path | None, typer.Option(help="Also save the output as an SVG image.")] = None,
 ) -> None:
     """Ask the energy advisor a question."""
     from energy_advisor.agent.graph import EnergyAdvisor
@@ -144,6 +145,8 @@ def ask(
         result = advisor.invoke(question, context=context)
     elapsed = time.perf_counter() - started
 
+    out = Console(record=True, width=110) if export_svg else console
+    out.print(f"[bold]Question:[/] {question}")
     if show_tools:
         table = Table(title=f"Tool calls ({elapsed:.1f} s total)", show_lines=False)
         table.add_column("tool", style="cyan")
@@ -151,8 +154,12 @@ def ask(
         for call in tool_calls(result):
             args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
             table.add_row(call["name"], args)
-        console.print(table)
-    console.print(Panel(Markdown(final_answer(result)), title="Answer", border_style="green"))
+        out.print(table)
+    out.print(Panel(Markdown(final_answer(result)), title="Answer", border_style="green"))
+    if export_svg:
+        export_svg.parent.mkdir(parents=True, exist_ok=True)
+        out.save_svg(str(export_svg), title="energy-advisor ask")
+        console.print(f"[green]Saved:[/] {export_svg}")
 
 
 @app.command("eval")
@@ -163,6 +170,9 @@ def evaluate(
     ] = None,
     limit: Annotated[int | None, typer.Option(min=1, help="Run only the first N cases.")] = None,
     out: Annotated[Path | None, typer.Option(help="Output folder (default: reports/).")] = None,
+    no_optimizer: Annotated[
+        bool, typer.Option("--no-optimizer", help="Ablation: run without the scheduling tools.")
+    ] = False,
 ) -> None:
     """Run the evaluation cases, score them (LLM judge + tool usage) and write a report."""
     from energy_advisor.agent.graph import EnergyAdvisor
@@ -175,7 +185,7 @@ def evaluate(
 
     settings = _settings()
     services = build_services(settings)
-    advisor = EnergyAdvisor.from_settings(settings, services)
+    advisor = EnergyAdvisor.from_settings(settings, services, optimizer=not no_optimizer)
     judge = LLMJudge.from_llm(make_chat_model(settings, settings.llm.judge_model))
     cases = load_cases(cases_file)[:limit]
 
@@ -185,7 +195,8 @@ def evaluate(
             f"tools(appropriateness={r.tool_eval.appropriateness:.2f}, completeness={r.tool_eval.completeness:.2f})"
         )
 
-    console.print(f"Running {len(cases)} cases...")
+    variant = "without optimizer tools" if no_optimizer else "with optimizer tools"
+    console.print(f"Running {len(cases)} cases {variant} (judge: {settings.llm.judge_model})...")
     results = run_evaluation(advisor, judge, cases, now=services.clock, on_result=progress)
     report = generate_report(results, now=services.clock())
     out_dir = out or settings.paths.reports

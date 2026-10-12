@@ -151,7 +151,7 @@ def render_markdown(report: EvaluationReport, results: Sequence[CaseResult] = ()
                 "",
                 f"*{r.question}*",
                 "",
-                f"- Tools used: {', '.join(c['name'] for c in r.tool_calls) or 'none'}",
+                f"- Tools used: {', '.join(str(c['name']) for c in r.tool_calls) or 'none'}",
                 f"- Response: {r.response_eval.feedback}",
                 f"- Tools: {r.tool_eval.feedback}",
                 "",

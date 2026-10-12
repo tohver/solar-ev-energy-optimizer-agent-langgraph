@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 DEVICE_TYPES = ("EV", "heat_pump", "appliance", "base_load")
 
 
-def build_tools(services: Services) -> list[BaseTool]:
+def build_tools(services: Services, optimizer: bool = True) -> list[BaseTool]:
+    """All agent tools; ``optimizer=False`` leaves out the scheduling tools (ablation runs)."""
     repo = services.repository
     settings = services.settings
     tz = settings.location.tz
@@ -54,6 +55,7 @@ def build_tools(services: Services) -> list[BaseTool]:
 
         Prices follow the day-ahead market; each hour is labelled off_peak / mid_peak / peak relative
         to that day. Check `is_estimate`: tomorrow's prices are only published around 13:00.
+        To decide WHEN to run or charge a device, use find_cheapest_window instead (if available).
 
         Args:
             date: Day in YYYY-MM-DD format (defaults to today).
@@ -246,14 +248,15 @@ def build_tools(services: Services) -> list[BaseTool]:
             logger.exception("calculate_energy_savings failed")
             return {"error": f"Failed to calculate savings: {exc}"}
 
-    return [
+    tools: list[BaseTool] = [
+        search_energy_tips,
         get_weather_forecast,
         get_electricity_prices,
         query_energy_usage,
         query_solar_generation,
         get_recent_energy_summary,
-        find_cheapest_window,
-        estimate_pv_generation,
-        search_energy_tips,
         calculate_energy_savings,
     ]
+    if optimizer:
+        tools += [find_cheapest_window, estimate_pv_generation]
+    return tools

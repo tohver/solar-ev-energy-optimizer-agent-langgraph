@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PriceProviderName = Literal["energy_charts", "awattar"]
+DEFAULT_PRICE_PROVIDERS: tuple[PriceProviderName, ...] = ("energy_charts", "awattar")
 
 
 class LocationSettings(BaseModel):
@@ -66,9 +68,7 @@ class TariffSettings(BaseModel):
 class PriceSettings(BaseModel):
     """Where prices come from. Real providers are tried in order; then an estimate; then a synthetic profile."""
 
-    providers: list[Literal["energy_charts", "awattar"]] = Field(
-        default_factory=lambda: ["energy_charts", "awattar"]
-    )
+    providers: list[PriceProviderName] = Field(default_factory=lambda: list(DEFAULT_PRICE_PROVIDERS))
     estimate_lookback_days: int = 7
     http_timeout_s: float = 20.0
 
@@ -95,7 +95,7 @@ class HouseholdSettings(BaseModel):
 
 class LLMSettings(BaseModel):
     model: str = "gpt-4o-mini"
-    judge_model: str = "gpt-4o-mini"
+    judge_model: str = "gpt-4.1"  # a stronger model than the agent, to judge it
     reranker_model: str = "gpt-4o-mini"
     embedding_model: str = "text-embedding-3-small"
     temperature: float = 0.0
