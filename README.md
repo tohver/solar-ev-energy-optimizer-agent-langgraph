@@ -14,6 +14,9 @@ letting the LLM do arithmetic.
 
 ![Example answer](docs/img/ask-demo.svg)
 
+New here? The [project guide](guide.md) walks through every feature, the assumptions behind the numbers and
+what each module does.
+
 ## What it does
 
 - **Schedules flexible loads**: finds the cheapest hours to charge the EV or run the dishwasher before a
