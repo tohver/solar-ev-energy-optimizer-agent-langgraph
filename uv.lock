@@ -3661,7 +3661,7 @@ wheels = [
 
 [[package]]
 name = "solar-ev-energy-optimizer"
-version = "0.2.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },

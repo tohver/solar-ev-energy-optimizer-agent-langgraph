@@ -1,6 +1,6 @@
 [project]
 name = "solar-ev-energy-optimizer"
-version = "0.2.0"
+version = "1.0.0"
 description = "LangGraph agent for a Munich household: schedules EV charging, heat pump and appliances using live weather, German day-ahead electricity prices, usage history and a RAG knowledge base."
 readme = "README.md"
 license = "MIT"

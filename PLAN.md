@@ -801,10 +801,17 @@ Implementation notes:
   model (gpt-4.1); the prompt is built from parts so `eval --no-optimizer` runs an ablation with the same agent,
   prompt and judge; tool descriptions route scheduling questions to `find_cheapest_window`.
 
-### Phase 7: Evaluation and presentation
-- [ ] Run `energy-advisor eval`; commit the curated report and heatmap to `docs/`
-- [ ] README rewrite (section 11); architecture diagram; demo GIF; example Q&A
-- [ ] Tag `v1.0.0` and write a GitHub release note
+### Phase 7: Evaluation and presentation ✅
+- [x] Run `energy-advisor eval`; commit the curated report and heatmap to `docs/`
+- [x] README rewrite (section 11); architecture diagram; demo GIF; example Q&A
+- [x] Tag `v1.0.0` and write a GitHub release note
+
+Implementation notes:
+- Phase 5's "done when" is met by the ablation: accuracy 0.81 → 0.94 overall and 0.72 → 0.94 on scheduling
+  questions (same agent, prompt, data and judge; single runs, see README).
+- A terminal "GIF" is replaced by an SVG produced by `energy-advisor ask --export-svg` (no recording tool needed).
+- The `v1.0.0` tag is created locally; pushing the branch and the tag and creating the GitHub release are left to
+  the repository owner.
 
 ---
 
