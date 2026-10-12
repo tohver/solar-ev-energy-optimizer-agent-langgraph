@@ -4127,6 +4127,7 @@ dependencies = [
 
 [package.optional-dependencies]
 app = [
+    { name = "matplotlib" },
     { name = "streamlit" },
 ]
 mcp = [
@@ -4158,6 +4159,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.0" },
     { name = "langchain-text-splitters", specifier = ">=1.0" },
     { name = "langgraph", specifier = ">=1.0" },
+    { name = "matplotlib", marker = "extra == 'app'", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.10" },
     { name = "pandas", marker = "extra == 'viz'", specifier = ">=2.2" },

@@ -112,7 +112,8 @@ def test_new_conversation_returns_to_the_chat(app_env):
 def test_prices_view_renders_without_a_button(app_env):
     at = _app("📈 Prices & solar")
     assert not at.exception
-    assert len(at.get("vega_lite_chart")) == 2  # price and solar panels
+    assert len(at.get("image")) == 1  # the README price/solar window chart (matplotlib)
+    assert any("seed-db" in i.value for i in at.info)  # no history in the test: average-day chart explained
     assert not [b for b in at.main.button if b.label == "Show"]
 
 

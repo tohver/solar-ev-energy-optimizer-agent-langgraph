@@ -94,7 +94,10 @@ The main area has three views:
 - **Chat**: the conversation with memory. An empty chat shows a greeting and four example questions as small
   buttons; clicking one sends it. Scheduling questions use the sidebar's From and Deadline unless your message
   names other times.
-- **Prices & solar**: hourly price and solar surplus for the sidebar's window, shown immediately.
+- **Prices & solar**: the two charts from the README, shown immediately for the sidebar's window: the solar
+  irradiance forecast above the household price (best solar hours shaded, cheapest and most expensive hour
+  labelled), and the household's average day (consumption per device vs. solar yield, last 30 days; needs
+  `seed-db`).
 
 ### 1.5 Use the tools from Claude Desktop, Claude Code or VS Code: `mcp`
 
@@ -384,7 +387,7 @@ so it is tested without an LLM.
 
 | File | What it does | How / why |
 |---|---|---|
-| `charts.py` | Five chart functions returning a matplotlib `Figure`, `generate_charts` (data gathering + PNG files), `save_evaluation_heatmap` | **pandas** for grouping and pivoting the history (here a table library is the right tool), **matplotlib** with the `Agg` backend (files only). Optional `viz` extra, so the agent does not need these libraries. |
+| `charts.py` | Chart functions returning a matplotlib `Figure` (used for the README images and the app's Prices & solar view), `window_frame` and `history_profile` (their data), `source_label`, `generate_charts` (data gathering + PNG files), `save_evaluation_heatmap` | **pandas** for grouping and pivoting the history (here a table library is the right tool), **matplotlib** with the `Agg` backend (files only). Optional `viz` extra, so the agent does not need these libraries. |
 
 ### Other folders
 

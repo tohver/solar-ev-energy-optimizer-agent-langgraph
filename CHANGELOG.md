@@ -11,6 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Streamlit web app (`app/streamlit_app.py`, extra `app`). All settings in the sidebar: From (default now),
   Deadline (default From + 24 h), devices, OK, New conversation. Views: **Best times** (result screen per device:
   slot table, cost analysis, solar contribution, plus a chart), Chat (memory, example questions), Prices & solar.
+- The app's Prices & solar view shows the two README charts (price/solar window, average day); the window
+  chart now uses a real time axis, so windows across midnight work.
 - Multi-device planner (`OptimizerService.plan_devices`): devices share the solar surplus, so it is not counted
   twice.
 

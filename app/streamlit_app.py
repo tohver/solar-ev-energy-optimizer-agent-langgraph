@@ -9,7 +9,7 @@ Run with:  uv run --extra app streamlit run app/streamlit_app.py
 from datetime import datetime, timedelta
 from typing import Any
 
-import altair as alt
+import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
@@ -18,7 +18,7 @@ from energy_advisor.agent.trace import final_answer, tool_calls
 from energy_advisor.config import MissingApiKeyError, Settings, get_settings
 from energy_advisor.optimization.service import DEVICE_PRESETS, DevicePlan, DeviceSpec
 from energy_advisor.services.container import Services, build_services
-from energy_advisor.ui.charts import BLUE, GREEN, OLIVE, PURPLE, plan_chart, price_panel, solar_panel, styled
+from energy_advisor.ui.charts import BLUE, GREEN, OLIVE, PURPLE, plan_chart
 from energy_advisor.ui.planner import hourly_rows, result_markdown, window_bars
 from energy_advisor.ui.window import (
     InvalidWindowError,
@@ -27,6 +27,14 @@ from energy_advisor.ui.window import (
     default_window,
     window_context,
     window_from_inputs,
+)
+from energy_advisor.viz.charts import (
+    STYLE,
+    history_profile,
+    hourly_profile_chart,
+    optimization_window_chart,
+    source_label,
+    window_frame,
 )
 
 st.set_page_config(page_title="Solar & EV Energy Advisor", page_icon="⚡", layout="wide")
@@ -236,26 +244,54 @@ def render_chat() -> None:
     state.chat.append({"role": "assistant", "content": answer, "tools": calls})
 
 
+@st.cache_data(ttl=900, show_spinner="Fetching prices and the solar forecast...")
+def window_data(
+    start_iso: str, deadline_iso: str, _services: Services
+) -> tuple[pd.DataFrame, str, str, bool]:
+    return window_frame(_services, datetime.fromisoformat(start_iso), datetime.fromisoformat(deadline_iso))
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def average_day(_services: Services) -> tuple[pd.DataFrame, pd.Series] | None:
+    return history_profile(_services)
+
+
 def render_prices() -> None:
+    """The two charts of the README: the price/solar window and the household's average day."""
     if window is None:
         st.info("Choose a deadline after the start on the left.")
         return
     try:
-        plan = plan_for(window.start.isoformat(), window.deadline.isoformat(), (), services)
+        data, weather_source, price_source, is_estimate = window_data(
+            window.start.isoformat(), window.deadline.isoformat(), services
+        )
     except Exception as exc:
         st.error(f"Could not load data: {exc}")
         return
-    data = pd.DataFrame(hourly_rows(plan, tz))
-    x = alt.X("time:T", title=None, axis=alt.Axis(format="%a %H:%M", labelAngle=0))
-    left, right = st.columns(2)
-    with left:
-        st.altair_chart(styled(price_panel(data, x, height=260)), width="stretch")
-        st.caption(
-            f"What one kWh from the grid costs (incl. fees and VAT). Source: {plan.window.curve.source}."
+    simulated = "" if weather_source.startswith("open-meteo") else " (simulated weather)"
+    with plt.rc_context(STYLE):
+        fig = optimization_window_chart(
+            data, f"Solar irradiance forecast{simulated}", source_label(price_source, is_estimate)
         )
-    with right:
-        st.altair_chart(styled(solar_panel(data, x, height=260)), width="stretch")
-        st.caption("PV energy expected beyond the house's own base load: free for the car or appliances.")
+    st.pyplot(fig, width="stretch")
+    plt.close(fig)
+    st.caption(
+        "Top: expected solar irradiance. Bottom: what one kWh from the grid costs (incl. fees and VAT). "
+        "Shaded: the best solar hours outside the most expensive third of the prices. "
+        f"Prices: {price_source}. Weather: {weather_source}."
+    )
+
+    profile = average_day(services)
+    if profile is None:
+        st.info("The average-day chart needs the household history: run `energy-advisor seed-db`.")
+        return
+    with plt.rc_context(STYLE):
+        fig = hourly_profile_chart(*profile)
+    st.pyplot(fig, width="stretch")
+    plt.close(fig)
+    st.caption(
+        "Average of the last 30 days: when each device uses electricity, and when the PV system produces."
+    )
 
 
 renderers: dict[str, Any] = {VIEWS[0]: render_best_times, VIEWS[1]: render_chat, VIEWS[2]: render_prices}

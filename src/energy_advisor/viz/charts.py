@@ -6,7 +6,7 @@ Every chart is a function that takes plain data and returns a matplotlib ``Figur
 
 import logging
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,8 +23,9 @@ from matplotlib.figure import Figure
 
 from energy_advisor.data.aggregation import energy_balance
 from energy_advisor.services.container import Services
+from energy_advisor.services.prices import assign_periods
 from energy_advisor.services.savings import calculate_savings
-from energy_advisor.timeutils import day_bounds_utc
+from energy_advisor.timeutils import day_bounds_utc, floor_hour
 
 logger = logging.getLogger(__name__)
 
@@ -121,34 +122,50 @@ def daily_usage_vs_solar_chart(per_device: pd.DataFrame, solar_daily: pd.Series)
     return fig
 
 
-def best_solar_window(weather: pd.DataFrame, prices: pd.DataFrame) -> pd.Index:
-    """Hours with good sun (>= 50% of the day's peak irradiance) outside the most expensive third."""
-    if weather["solar_irradiance"].max() <= 0:
-        return weather.index[:0]
-    good_sun = weather["solar_irradiance"] >= 0.5 * weather["solar_irradiance"].max()
-    return weather.index[good_sun & (prices.loc[weather.index, "period"] != "peak")]
+def source_label(price_source: str, is_estimate: bool) -> str:
+    """Short label for chart titles; the full source belongs in a caption."""
+    if not is_estimate:
+        return "day-ahead market"
+    return "partly estimated" if "+" in price_source else "estimated"
 
 
-def optimization_window_chart(
-    weather: pd.DataFrame, prices: pd.DataFrame, title: str, price_source: str
-) -> Figure:
-    """Solar irradiance forecast and hourly retail price for one day, with the best window highlighted."""
-    window = best_solar_window(weather, prices)
+def good_sun_runs(data: pd.DataFrame) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Runs of consecutive hours with good sun (>= 50% of the window's peak irradiance) outside the most
+    expensive third of the prices: the best hours for flexible loads. Returns (first hour, last hour) pairs."""
+    if data.empty or data["solar_irradiance"].max() <= 0:
+        return []
+    good = (data["solar_irradiance"] >= 0.5 * data["solar_irradiance"].max()) & (data["period"] != "peak")
+    runs: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    for time, ok in good.items():
+        if not ok:
+            continue
+        if runs and time - runs[-1][1] <= pd.Timedelta(hours=1):
+            runs[-1] = (runs[-1][0], time)
+        else:
+            runs.append((time, time))
+    return runs
+
+
+def optimization_window_chart(data: pd.DataFrame, title: str, price_source: str) -> Figure:
+    """Solar irradiance forecast (top) and household price (bottom) over a time window, with the best solar
+    hours highlighted and the cheapest and most expensive hour labelled.
+
+    ``data`` is indexed by the local start of each hour and has the columns ``solar_irradiance`` (W/m2),
+    ``rate`` (EUR/kWh) and ``period`` (off_peak / mid_peak / peak).
+    """
+    half = pd.Timedelta(minutes=30)
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-    ax1.fill_between(
-        weather.index, weather["solar_irradiance"], color=COLORS["solar"], alpha=0.35, lw=0, step="mid"
-    )
-    ax1.step(weather.index, weather["solar_irradiance"], where="mid", color=COLORS["solar"])
+    x = data.index + half  # centre of each hour
+    ax1.fill_between(x, data["solar_irradiance"], color=COLORS["solar"], alpha=0.35, lw=0, step="mid")
+    ax1.step(x, data["solar_irradiance"], where="mid", color=COLORS["solar"])
     ax1.set_title(title)
     ax1.set_ylabel("W/m²")
 
-    ax2.step(prices.index, prices["rate"], where="mid", color=COLORS["accent"])
-    cheapest = prices["rate"].idxmin()
-    priciest = prices["rate"].idxmax()
-    for hour, label in ((cheapest, "cheapest"), (priciest, "most expensive")):
+    ax2.step(x, data["rate"], where="mid", color=COLORS["accent"])
+    for time, label in ((data["rate"].idxmin(), "cheapest"), (data["rate"].idxmax(), "most expensive")):
         ax2.annotate(
-            f"{label}\n{prices.loc[hour, 'rate']:.3f} €",
-            (hour, prices.loc[hour, "rate"]),
+            f"{label}\n{data.loc[time, 'rate']:.3f} €",
+            (pd.Timestamp(time) + half, data.loc[time, "rate"]),
             xytext=(0, 8),
             textcoords="offset points",
             ha="center",
@@ -157,23 +174,28 @@ def optimization_window_chart(
         )
     ax2.set_title(f"Household electricity price ({price_source})")
     ax2.set_ylabel("EUR per kWh")
-    ax2.set_xlabel("Hour of day (local time)")
-    ax2.set_xticks(range(0, 24, 2))
-    ax2.set_ylim(prices["rate"].min() * 0.9, prices["rate"].max() * 1.12)
+    ax2.set_xlabel("Local time")
+    ax2.set_ylim(data["rate"].min() * 0.9, data["rate"].max() * 1.12)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%a %H:%M"))
+    ax2.set_xlim(data.index.min(), data.index.max() + pd.Timedelta(hours=1))
 
-    if len(window):
+    runs = good_sun_runs(data)
+    for first, last in runs:
         for ax in (ax1, ax2):
-            ax.axvspan(window.min() - 0.5, window.max() + 0.5, color=COLORS["accent"], alpha=0.10, lw=0)
+            ax.axvspan(first, last + pd.Timedelta(hours=1), color=COLORS["accent"], alpha=0.10, lw=0)
+    if runs:
+        first, last = max(runs, key=lambda r: r[1] - r[0])
         ax1.text(
-            (window.min() + window.max()) / 2,
-            weather["solar_irradiance"].max() * 0.5,
-            f"best solar window\n{window.min():02d}:00-{window.max() + 1:02d}:00",
+            first + (last + pd.Timedelta(hours=1) - first) / 2,
+            data["solar_irradiance"].max() * 0.5,
+            f"best solar window\n{first:%H:%M}-{last + pd.Timedelta(hours=1):%H:%M}",
             ha="center",
             va="center",
             color=TEXT,
             fontsize=9,
             fontweight="bold",
         )
+    fig.autofmt_xdate()
     fig.tight_layout()
     return fig
 
@@ -237,6 +259,63 @@ def save_evaluation_heatmap(rows: Sequence[dict[str, Any]], metrics: Sequence[st
         return _save(evaluation_heatmap(rows, metrics), path)
 
 
+def window_frame(services: Services, start: datetime, end: datetime) -> tuple[pd.DataFrame, str, str, bool]:
+    """Hourly irradiance, household price and price period for ``[start, end)``.
+
+    Returns (data indexed by local hour, weather source, price source, prices are estimates).
+    """
+    tz = services.settings.location.tz
+    first, last = start.astimezone(tz).date(), (end - timedelta(seconds=1)).astimezone(tz).date()
+    weather = services.weather.series(first, last)
+    irradiance = {h.time: h.irradiance_w_m2 for h in weather.hours}
+    curve = services.prices.curve(floor_hour(start), end)
+    hours = [
+        (hour, retail)
+        for hour, _, retail in curve.hourly()
+        if start <= hour + timedelta(hours=1) and hour < end
+    ]
+    periods = assign_periods([retail for _, retail in hours])
+    data = pd.DataFrame(
+        {
+            "solar_irradiance": [irradiance.get(hour, 0.0) for hour, _ in hours],
+            "rate": [retail for _, retail in hours],
+            "period": periods,
+        },
+        index=pd.DatetimeIndex([hour.astimezone(tz).replace(tzinfo=None) for hour, _ in hours]),
+    )
+    return data, weather.source, curve.source, curve.is_estimate
+
+
+def history_profile(services: Services, days: int = 30) -> tuple[pd.DataFrame, pd.Series] | None:
+    """Average consumption per local hour and device, and average solar yield per hour, over the last days.
+
+    None if there is no history (run ``energy-advisor seed-db``).
+    """
+    tz = services.settings.location.tz
+    today = services.clock().astimezone(tz).date()
+    start, end = day_bounds_utc(today - timedelta(days=days), today - timedelta(days=1), tz)
+    usage = services.repository.usage_between(start, end) if services.repository.exists() else []
+    if not usage:
+        return None
+    generation = services.repository.generation_between(start, end)
+    usage_df = pd.DataFrame(
+        [{"t": r.timestamp.astimezone(tz), "device": r.device_type, "kwh": r.consumption_kwh} for r in usage]
+    )
+    n_days = usage_df["t"].map(lambda t: t.date()).nunique()
+    profile = (
+        usage_df.assign(hour=usage_df["t"].map(lambda t: t.hour))
+        .groupby(["hour", "device"])["kwh"]
+        .sum()
+        .unstack(fill_value=0)
+        .reindex(range(24), fill_value=0)
+        / n_days
+    )
+    solar = pd.Series(0.0, index=range(24))
+    for g in generation:
+        solar[g.timestamp.astimezone(tz).hour] += g.generation_kwh / n_days
+    return profile, solar
+
+
 def generate_charts(services: Services, out_dir: Path, days: int = 30) -> list[Path]:
     """Query the history, forecast and prices, and write all charts to ``out_dir``."""
     settings = services.settings
@@ -271,17 +350,11 @@ def generate_charts(services: Services, out_dir: Path, days: int = 30) -> list[P
     solar_daily = solar_df.groupby(pd.to_datetime(solar_df["t"].map(lambda t: t.date())))["kwh"].sum()
 
     tomorrow = today + timedelta(days=1)
-    forecast = services.weather.forecast(None, days=2)
-    prices = services.prices.get_prices(tomorrow.isoformat())
-    weather_df = (
-        pd.DataFrame([h for h in forecast["hourly"] if h["date"] == tomorrow.isoformat()])
-        .drop_duplicates("hour")
-        .set_index("hour")
-    )
-    prices_df = pd.DataFrame(prices["hourly_rates"]).drop_duplicates("hour").set_index("hour")
-    price_source = prices["source"] + (" - ESTIMATE" if prices["is_estimate"] else "")
-    title = f"Solar irradiance forecast, {tomorrow} ({forecast['source']})"
-
+    window_start, window_end = day_bounds_utc(tomorrow, tomorrow, tz)
+    frame, weather_source, price_source, is_estimate = window_frame(services, window_start, window_end)
+    title = f"Solar irradiance forecast, {tomorrow} ({weather_source})"
+    price_label = source_label(price_source, is_estimate)
+    prices_df = frame
     tariff = settings.tariff
     cheap = float(np.mean(sorted(prices_df["rate"])[:4]))
     expensive = float(np.mean(sorted(prices_df["rate"])[-4:]))
@@ -315,9 +388,6 @@ def generate_charts(services: Services, out_dir: Path, days: int = 30) -> list[P
         return [
             _save(hourly_profile_chart(profile, solar_profile), out_dir / "hourly_profile.png"),
             _save(daily_usage_vs_solar_chart(per_device, solar_daily), out_dir / "daily_usage_vs_solar.png"),
-            _save(
-                optimization_window_chart(weather_df, prices_df, title, price_source),
-                out_dir / "optimization_window.png",
-            ),
+            _save(optimization_window_chart(frame, title, price_label), out_dir / "optimization_window.png"),
             _save(savings_chart(pd.DataFrame(rows)), out_dir / "annual_savings.png"),
         ]
