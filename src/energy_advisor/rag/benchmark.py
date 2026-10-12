@@ -8,18 +8,21 @@ from energy_advisor.rag.retrieval import Passage
 
 # Each query is labelled with the document that best answers it.
 BENCHMARK_QUERIES: list[tuple[str, str]] = [
-    ("When should I run my pool pump?", "tip_ev_charging_and_tariffs.txt"),
-    ("How do I keep my house cool during an evening price spike?", "tip_hvac_optimization.txt"),
-    ("Can my electric car power the house during an outage?", "tip_energy_storage_optimization.txt"),
+    ("When should I run my dishwasher with a dynamic tariff?", "tip_device_best_practices.txt"),
+    ("How do I keep the house warm during an evening price peak?", "tip_hvac_optimization.txt"),
+    ("Can my electric car power the house?", "tip_energy_storage_optimization.txt"),
     ("Should I export my solar power or use it myself?", "tip_renewable_integration.txt"),
-    ("What thermostat temperature for winter?", "tip_seasonal_energy_management.txt"),
+    (
+        "How much solar power does an 8 kWp system produce in December in Munich?",
+        "tip_seasonal_energy_management.txt",
+    ),
     ("How do smart plugs reduce standby power?", "tip_smart_home_automation.txt"),
-    ("How much CO2 does a 6 kW solar system avoid?", "tip_renewable_integration.txt"),
-    ("Battery arbitrage payback period", "tip_energy_storage_optimization.txt"),
-    ("Dishwasher eco mode and full loads", "tip_device_best_practices.txt"),
+    ("How much CO2 does an 8 kWp solar system avoid?", "tip_renewable_integration.txt"),
+    ("Is a home battery worth it with a dynamic tariff?", "tip_energy_storage_optimization.txt"),
+    ("Dishwasher eco programme and full loads", "tip_device_best_practices.txt"),
     ("Cheapest time to charge an EV overnight", "tip_ev_charging_and_tariffs.txt"),
-    ("How often should I replace the HVAC filter?", "tip_hvac_optimization.txt"),
-    ("Is there a demand charge during peak hours?", "tip_energy_storage_optimization.txt"),
+    ("What flow temperature should my heat pump use?", "tip_hvac_optimization.txt"),
+    ("What does section 14a mean for my wallbox?", "tip_ev_charging_and_tariffs.txt"),
 ]
 METHODS = ("vector", "hybrid", "hybrid_rerank")
 

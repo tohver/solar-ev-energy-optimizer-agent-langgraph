@@ -6,7 +6,9 @@ from energy_advisor.llm import make_chat_model, make_embeddings
 
 def test_defaults_without_env_file():
     s = Settings(_env_file=None)
-    assert s.location.name == "San Francisco, CA"
+    assert s.location.name == "Munich, Germany"
+    assert s.location.tz.key == "Europe/Berlin"
+    assert s.tariff.currency == "EUR"
     assert s.openai_api_key is None
     assert s.openai_base_url is None  # standard OpenAI endpoint, no course proxy by default
 
@@ -14,9 +16,24 @@ def test_defaults_without_env_file():
 def test_nested_values_can_be_overridden_from_environment(monkeypatch):
     monkeypatch.setenv("LLM__MODEL", "gpt-test")
     monkeypatch.setenv("HOUSEHOLD__CO2_KG_PER_KWH", "0.25")
+    monkeypatch.setenv("TARIFF__SURCHARGES_EUR_PER_KWH", "0.21")
     s = Settings(_env_file=None)
     assert s.llm.model == "gpt-test"
     assert s.household.co2_kg_per_kwh == 0.25
+    assert s.tariff.surcharges_eur_per_kwh == 0.21
+
+
+def test_unknown_timezone_is_rejected():
+    with pytest.raises(ValueError, match="Europe/Atlantis"):
+        Settings(_env_file=None, location={"timezone": "Europe/Atlantis"})
+
+
+@pytest.mark.parametrize(
+    ("place", "is_home"),
+    [(None, True), ("", True), ("München", True), ("Munich, DE", True), ("Hamburg", False)],
+)
+def test_location_matches_its_aliases(place, is_home):
+    assert Settings(_env_file=None).location.matches(place) is is_home
 
 
 def test_home_environment_variable_does_not_break_settings(monkeypatch):

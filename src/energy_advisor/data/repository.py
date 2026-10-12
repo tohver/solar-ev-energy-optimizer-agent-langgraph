@@ -5,7 +5,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, delete, select
+from sqlalchemy import Engine, create_engine, delete, func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from energy_advisor.data.models import Base, EnergyUsage, SolarGeneration
@@ -30,6 +31,23 @@ class EnergyRepository:
     def create_tables(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(self.engine)
+
+    def recreate_tables(self) -> dict[str, int]:
+        """Drop and recreate the tables (the data is generated, so schema changes need no migration).
+
+        Returns how many rows each table had before.
+        """
+        counts = {}
+        for model in (EnergyUsage, SolarGeneration):
+            try:
+                with self.session() as s:
+                    counts[model.__tablename__] = s.scalar(select(func.count()).select_from(model)) or 0
+            except OperationalError:  # table missing or with an old schema
+                counts[model.__tablename__] = 0
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
+        return counts
 
     def clear(self) -> dict[str, int]:
         """Delete all rows (keeps the schema), so re-seeding never duplicates data."""

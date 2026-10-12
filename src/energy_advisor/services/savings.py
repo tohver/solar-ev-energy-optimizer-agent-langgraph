@@ -12,7 +12,7 @@ def calculate_savings(
     price_per_kwh: float,
     optimized_price_per_kwh: float | None,
     co2_kg_per_kwh: float,
-    currency: str = "USD",
+    currency: str = "EUR",
 ) -> dict[str, Any]:
     """Savings in kWh, money, percent, per year and CO2.
 

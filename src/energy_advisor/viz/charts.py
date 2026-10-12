@@ -6,7 +6,7 @@ Every chart is a function that takes plain data and returns a matplotlib ``Figur
 
 import logging
 from collections.abc import Sequence
-from datetime import datetime, time, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +21,21 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 
+from energy_advisor.data.aggregation import energy_balance
 from energy_advisor.services.container import Services
-from energy_advisor.services.prices import PEAK_HOURS
 from energy_advisor.services.savings import calculate_savings
+from energy_advisor.timeutils import day_bounds_utc
 
 logger = logging.getLogger(__name__)
 
-COLORS = {"EV": "#2a78d6", "HVAC": "#eb6834", "appliance": "#1baf7a", "solar": "#eda100", "accent": "#2a78d6"}
+COLORS = {
+    "EV": "#2a78d6",
+    "heat_pump": "#eb6834",
+    "appliance": "#1baf7a",
+    "base_load": "#8a8984",
+    "solar": "#eda100",
+    "accent": "#2a78d6",
+}
 TEXT, TEXT_2, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 STYLE = {
     "figure.facecolor": SURFACE,
@@ -54,48 +62,22 @@ STYLE = {
 
 
 # ----------------------------------------------------------------------------- charts
-def hourly_profile_chart(avg_kwh_by_hour: dict[str, dict[int, float]]) -> Figure:
-    """Average consumption per hour of day for each device type, with the peak-price window."""
-    profile = pd.DataFrame(avg_kwh_by_hour).sort_index()
-    profile.index = profile.index.astype(int)
-    profile = profile.sort_index()
-
+def hourly_profile_chart(profile: pd.DataFrame, solar: pd.Series) -> Figure:
+    """Average consumption per local hour for each device type, with the average solar yield behind it."""
     fig, ax = plt.subplots(figsize=(10, 4.2))
-    for device in profile.columns:
-        ax.plot(profile.index, profile[device], color=COLORS.get(device, TEXT_2), label=device)
-
-    # Direct labels at the line ends, nudged apart so they don't collide
-    min_gap = (profile.max().max() - profile.min().min()) * 0.07
-    placed: list[float] = []
-    for y, device in sorted((profile[d].iloc[-1], d) for d in profile.columns):
-        y_label = max(y, placed[-1] + min_gap) if placed else y
-        placed.append(y_label)
-        ax.annotate(
-            device,
-            (profile.index[-1], y),
-            xytext=(profile.index[-1] + 0.4, y_label),
-            textcoords="data",
-            va="center",
-            color=TEXT,
-            fontsize=9,
-        )
-
-    ax.axvspan(PEAK_HOURS.start, PEAK_HOURS.stop, color=GRID, alpha=0.6, lw=0)
-    ax.text(
-        (PEAK_HOURS.start + PEAK_HOURS.stop) / 2,
-        profile.max().max() * 0.62,
-        f"peak price\n{PEAK_HOURS.start}-{PEAK_HOURS.stop}",
-        ha="center",
-        va="center",
-        color=TEXT_2,
-        fontsize=9,
+    ax.fill_between(
+        solar.index, solar.values, color=COLORS["solar"], alpha=0.25, lw=0, step="mid", label="solar yield"
     )
-    ax.set_title("Average consumption per hour of day")
-    ax.set_xlabel("Hour of day")
+    for device in profile.columns:
+        ax.plot(
+            profile.index, profile[device], color=COLORS.get(device, TEXT_2), label=device.replace("_", " ")
+        )
+    ax.set_title("Average hour of the day: consumption by device vs. solar yield")
+    ax.set_xlabel("Hour of day (local time)")
     ax.set_ylabel("kWh per hour")
     ax.set_xticks(range(0, 24, 2))
-    ax.set_xlim(0, 24.5)
-    ax.legend(loc="upper left")
+    ax.set_xlim(-0.5, 23.5)
+    ax.legend(loc="upper left", ncol=3)
     fig.tight_layout()
     return fig
 
@@ -113,15 +95,15 @@ def daily_usage_vs_solar_chart(per_device: pd.DataFrame, solar_daily: pd.Series)
             bottom=bottom,
             width=0.8,
             color=COLORS.get(device, TEXT_2),
-            label=device,
+            label=device.replace("_", " "),
             edgecolor=SURFACE,
             linewidth=1,
         )
         bottom = per_device[device] if bottom is None else bottom + per_device[device]
     ax1.set_title("Daily consumption by device type")
     ax1.set_ylabel("kWh per day")
-    ax1.set_ylim(0, per_device.sum(axis=1).max() * 1.18)  # headroom so the legend never covers bars
-    ax1.legend(ncol=3, loc="upper left")
+    ax1.set_ylim(0, per_device.sum(axis=1).max() * 1.2)  # headroom so the legend never covers bars
+    ax1.legend(ncol=4, loc="upper left")
 
     ax2.bar(
         solar_daily.index,
@@ -140,47 +122,51 @@ def daily_usage_vs_solar_chart(per_device: pd.DataFrame, solar_daily: pd.Series)
 
 
 def best_solar_window(weather: pd.DataFrame, prices: pd.DataFrame) -> pd.Index:
-    """Hours with good sun (>= 50% of the day's peak irradiance) outside the peak-price period."""
+    """Hours with good sun (>= 50% of the day's peak irradiance) outside the most expensive third."""
+    if weather["solar_irradiance"].max() <= 0:
+        return weather.index[:0]
     good_sun = weather["solar_irradiance"] >= 0.5 * weather["solar_irradiance"].max()
-    return weather.index[good_sun & (prices["period"] != "peak")]
+    return weather.index[good_sun & (prices.loc[weather.index, "period"] != "peak")]
 
 
 def optimization_window_chart(
-    weather: pd.DataFrame, prices: pd.DataFrame, day: str, source: str, currency: str
+    weather: pd.DataFrame, prices: pd.DataFrame, title: str, price_source: str
 ) -> Figure:
-    """Solar irradiance forecast and time-of-use price for one day, with the best window highlighted."""
+    """Solar irradiance forecast and hourly retail price for one day, with the best window highlighted."""
     window = best_solar_window(weather, prices)
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
     ax1.fill_between(
         weather.index, weather["solar_irradiance"], color=COLORS["solar"], alpha=0.35, lw=0, step="mid"
     )
     ax1.step(weather.index, weather["solar_irradiance"], where="mid", color=COLORS["solar"])
-    ax1.set_title(f"Solar irradiance forecast - {day} ({source})")
+    ax1.set_title(title)
     ax1.set_ylabel("W/m²")
 
     ax2.step(prices.index, prices["rate"], where="mid", color=COLORS["accent"])
-    ax2.set_title("Electricity price (time-of-use)")
-    ax2.set_ylabel(f"{currency} per kWh")
-    ax2.set_xlabel("Hour of day")
-    ax2.set_xticks(range(0, 24, 2))
-    for period, label_hour in (("off_peak", 2), ("mid_peak", 11), ("peak", 19)):
-        rate = prices.loc[prices["period"] == period, "rate"].iloc[0]
+    cheapest = prices["rate"].idxmin()
+    priciest = prices["rate"].idxmax()
+    for hour, label in ((cheapest, "cheapest"), (priciest, "most expensive")):
         ax2.annotate(
-            f"{period.replace('_', '-')}  {rate:.3f}",
-            (label_hour, rate),
-            xytext=(0, 6),
+            f"{label}\n{prices.loc[hour, 'rate']:.3f} €",
+            (hour, prices.loc[hour, "rate"]),
+            xytext=(0, 8),
             textcoords="offset points",
             ha="center",
             color=TEXT,
             fontsize=9,
         )
+    ax2.set_title(f"Household electricity price ({price_source})")
+    ax2.set_ylabel("EUR per kWh")
+    ax2.set_xlabel("Hour of day (local time)")
+    ax2.set_xticks(range(0, 24, 2))
+    ax2.set_ylim(prices["rate"].min() * 0.9, prices["rate"].max() * 1.12)
 
     if len(window):
         for ax in (ax1, ax2):
             ax.axvspan(window.min() - 0.5, window.max() + 0.5, color=COLORS["accent"], alpha=0.10, lw=0)
-        ax2.text(
+        ax1.text(
             (window.min() + window.max()) / 2,
-            (prices["rate"].min() + prices.loc[window, "rate"].min()) / 2,
+            weather["solar_irradiance"].max() * 0.5,
             f"best solar window\n{window.min():02d}:00-{window.max() + 1:02d}:00",
             ha="center",
             va="center",
@@ -192,7 +178,7 @@ def optimization_window_chart(
     return fig
 
 
-def savings_chart(savings: pd.DataFrame, currency: str) -> Figure:
+def savings_chart(savings: pd.DataFrame) -> Figure:
     """Projected annual savings per recommendation (horizontal bars)."""
     savings = savings.sort_values("annual_savings")
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -201,15 +187,15 @@ def savings_chart(savings: pd.DataFrame, currency: str) -> Figure:
         ax.text(
             bar.get_width(),
             bar.get_y() + bar.get_height() / 2,
-            f"  {value:,.0f} {currency}",
+            f"  {value:,.0f} €",
             va="center",
             color=TEXT,
             fontsize=9,
         )
     ax.set_title("Projected annual savings per recommendation")
-    ax.set_xlabel(f"{currency} per year")
+    ax.set_xlabel("EUR per year")
     ax.grid(axis="y", visible=False)
-    ax.set_xlim(0, savings["annual_savings"].max() * 1.25)
+    ax.set_xlim(0, max(1.0, savings["annual_savings"].max()) * 1.25)
     fig.tight_layout()
     return fig
 
@@ -253,66 +239,85 @@ def save_evaluation_heatmap(rows: Sequence[dict[str, Any]], metrics: Sequence[st
 
 def generate_charts(services: Services, out_dir: Path, days: int = 30) -> list[Path]:
     """Query the history, forecast and prices, and write all charts to ``out_dir``."""
-    end = services.now().date()
-    start = end - timedelta(days=days)
     settings = services.settings
-    currency = settings.pricing.currency
-
-    start_dt, end_dt = datetime.combine(start, time.min), datetime.combine(end, time.min)
-    usage = services.repository.usage_between(start_dt, end_dt)
-    generation = services.repository.generation_between(start_dt, end_dt)
+    tz = settings.location.tz
+    today = services.clock().astimezone(tz).date()
+    start, end = day_bounds_utc(today - timedelta(days=days), today - timedelta(days=1), tz)
+    usage = services.repository.usage_between(start, end)
+    generation = services.repository.generation_between(start, end)
     if not usage:
         raise RuntimeError("No usage data found. Run `energy-advisor seed-db` first.")
 
     usage_df = pd.DataFrame(
-        [{"timestamp": r.timestamp, "device": r.device_type, "kwh": r.consumption_kwh} for r in usage]
+        [{"t": r.timestamp.astimezone(tz), "device": r.device_type, "kwh": r.consumption_kwh} for r in usage]
     )
-    usage_df["hour"] = usage_df["timestamp"].dt.hour
-    usage_df["day"] = usage_df["timestamp"].dt.normalize()
-    avg_by_hour = usage_df.groupby(["device", "hour"])["kwh"].mean().unstack(0).round(2).to_dict()
-    per_device = usage_df.pivot_table(index="day", columns="device", values="kwh", aggfunc="sum").fillna(0)
-    solar_daily = (
-        pd.DataFrame(
-            [{"day": pd.Timestamp(r.timestamp).normalize(), "kwh": r.generation_kwh} for r in generation]
-        )
-        .groupby("day")["kwh"]
+    usage_df["hour"] = usage_df["t"].map(lambda t: t.hour)
+    usage_df["day"] = pd.to_datetime(usage_df["t"].map(lambda t: t.date()))
+    n_days = usage_df["day"].nunique()
+    profile = (
+        usage_df.groupby(["hour", "device"])["kwh"]
         .sum()
+        .unstack(fill_value=0)
+        .reindex(range(24), fill_value=0)
     )
+    profile = profile / n_days
+    per_device = usage_df.pivot_table(index="day", columns="device", values="kwh", aggfunc="sum").fillna(0)
 
-    tomorrow = (end + timedelta(days=1)).isoformat()
-    forecast = services.weather.forecast(settings.location.name, days=2)
-    prices = services.prices.get_prices(tomorrow)
-    weather_df = pd.DataFrame([h for h in forecast["hourly"] if h["date"] == tomorrow]).set_index("hour")
-    prices_df = pd.DataFrame(prices["hourly_rates"]).set_index("hour")
+    solar_df = pd.DataFrame([{"t": g.timestamp.astimezone(tz), "kwh": g.generation_kwh} for g in generation])
+    solar_profile = (
+        solar_df.groupby(solar_df["t"].map(lambda t: t.hour))["kwh"].sum().reindex(range(24), fill_value=0)
+        / n_days
+    )
+    solar_daily = solar_df.groupby(pd.to_datetime(solar_df["t"].map(lambda t: t.date())))["kwh"].sum()
 
-    rates = prices_df.groupby("period")["rate"].first()
-    peak, mid, off = rates["peak"], rates["mid_peak"], rates["off_peak"]
-    hvac_daily = per_device["HVAC"].mean() if "HVAC" in per_device else 0.0
+    tomorrow = today + timedelta(days=1)
+    forecast = services.weather.forecast(None, days=2)
+    prices = services.prices.get_prices(tomorrow.isoformat())
+    weather_df = (
+        pd.DataFrame([h for h in forecast["hourly"] if h["date"] == tomorrow.isoformat()])
+        .drop_duplicates("hour")
+        .set_index("hour")
+    )
+    prices_df = pd.DataFrame(prices["hourly_rates"]).drop_duplicates("hour").set_index("hour")
+    price_source = prices["source"] + (" - ESTIMATE" if prices["is_estimate"] else "")
+    title = f"Solar irradiance forecast, {tomorrow} ({forecast['source']})"
+
+    tariff = settings.tariff
+    cheap = float(np.mean(sorted(prices_df["rate"])[:4]))
+    expensive = float(np.mean(sorted(prices_df["rate"])[-4:]))
+    average = float(prices_df["rate"].mean())
+    balance = energy_balance(usage, generation, tariff.feed_in_tariff_eur_per_kwh)
+    exported_per_day = balance["solar_exported_kwh"] / n_days
+    heat_pump_daily = per_device["heat_pump"].mean() if "heat_pump" in per_device else 0.0
     scenarios = [
-        # name, device, current kWh/day, optimized kWh/day, current rate, optimized rate
-        ("EV charging: peak -> off-peak (10 kWh/day)", "EV", 10, 10, peak, off),
-        ("Dishwasher: peak -> off-peak (1.5 kWh/day)", "appliance", 1.5, 1.5, peak, off),
-        ("Pool pump: mid-peak -> off-peak (3 kWh/day)", "pool pump", 3, 3, mid, off),
-        ("Thermostat +2°F in summer (-6% HVAC)", "HVAC", hvac_daily, hvac_daily * 0.94, mid, mid),
-        ("Standby loads on smart plugs (-0.3 kWh/day)", "appliance", 0.3, 0.0, mid, mid),
-    ]
-    unit = currency.lower()
-    savings_rows = []
-    for name, device, cur, opt, rate, new_rate in scenarios:
+        # name, device, current kWh/day, optimized kWh/day, current price, optimized price
+        ("EV: evening -> cheapest hours (8 kWh/day)", "EV", 8, 8, expensive, cheap),
+        ("EV: evening -> own solar (4 kWh/day)", "EV", 4, 4, expensive, tariff.feed_in_tariff_eur_per_kwh),
+        ("Dishwasher: evening -> cheapest hours", "appliance", 1.0, 1.0, expensive, cheap),
+        ("Heat pump: 1 °C lower setpoint (-6%)", "heat_pump", heat_pump_daily, heat_pump_daily * 0.94, average, average),
+        ("Use exported solar at home (25%)", "solar", exported_per_day * 0.25, exported_per_day * 0.25,
+         average, tariff.feed_in_tariff_eur_per_kwh),
+    ]  # fmt: skip
+    rows = []
+    for name, device, cur, opt, price, new_price in scenarios:
         result = calculate_savings(
-            device, round(cur, 2), round(opt, 2), rate, new_rate, settings.household.co2_kg_per_kwh, currency
+            device,
+            round(cur, 2),
+            round(opt, 2),
+            round(price, 4),
+            round(new_price, 4),
+            settings.household.co2_kg_per_kwh,
+            tariff.currency,
         )
-        savings_rows.append({"scenario": name, "annual_savings": result[f"annual_savings_{unit}"]})
+        rows.append({"scenario": name, "annual_savings": result["annual_savings_eur"]})
 
     with plt.rc_context(STYLE):
         return [
-            _save(hourly_profile_chart(avg_by_hour), out_dir / "hourly_profile.png"),
+            _save(hourly_profile_chart(profile, solar_profile), out_dir / "hourly_profile.png"),
             _save(daily_usage_vs_solar_chart(per_device, solar_daily), out_dir / "daily_usage_vs_solar.png"),
             _save(
-                optimization_window_chart(
-                    weather_df, prices_df, tomorrow, forecast.get("source", ""), currency
-                ),
+                optimization_window_chart(weather_df, prices_df, title, price_source),
                 out_dir / "optimization_window.png",
             ),
-            _save(savings_chart(pd.DataFrame(savings_rows), currency), out_dir / "annual_savings.png"),
+            _save(savings_chart(pd.DataFrame(rows)), out_dir / "annual_savings.png"),
         ]

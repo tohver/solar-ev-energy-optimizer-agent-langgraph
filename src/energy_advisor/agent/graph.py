@@ -1,8 +1,8 @@
 """The agent: a LangGraph loop ``START -> agent -> (tools -> agent)* -> END``."""
 
 import logging
-from collections.abc import Callable, Sequence
-from datetime import datetime, timedelta
+from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -17,17 +17,19 @@ from energy_advisor.agent.tools import build_tools
 from energy_advisor.config import Settings
 from energy_advisor.llm import make_chat_model
 from energy_advisor.services.container import Services, build_services
+from energy_advisor.timeutils import Clock, calendar_lines
 
 logger = logging.getLogger(__name__)
 CALENDAR_DAYS = 8
 
 
 def build_system_context(now: datetime, context: str | None = None) -> str:
-    """Current date/time and a calendar of the next days, so "tomorrow" or "Wednesday" map to exact dates."""
-    calendar = ", ".join(
-        f"{(now + timedelta(days=d)):%A} = {(now + timedelta(days=d)):%Y-%m-%d}" for d in range(CALENDAR_DAYS)
+    """Current local date/time and a calendar of the next days, so "tomorrow" or "Wednesday" map to
+    exact dates. Today and tomorrow are marked, so "Monday" on a Monday is not misread as today."""
+    text = (
+        f"Current date and time: {now:%A, %Y-%m-%d %H:%M} ({now.tzname()}).\n"
+        f"Upcoming days: {calendar_lines(now, CALENDAR_DAYS)}."
     )
-    text = f"Current date and time: {now:%A, %Y-%m-%d %H:%M}.\nUpcoming days: {calendar}."
     return f"{text}\n{context}" if context else text
 
 
@@ -56,9 +58,9 @@ class EnergyAdvisor:
         self,
         llm: BaseChatModel,
         tools: Sequence[BaseTool],
+        now: Clock,
         instructions: str = SYSTEM_PROMPT,
         default_context: str | None = None,
-        now: Callable[[], datetime] = datetime.now,
         recursion_limit: int = 25,
     ) -> None:
         self.instructions = instructions
@@ -81,8 +83,11 @@ class EnergyAdvisor:
             llm=make_chat_model(settings, model),
             tools=build_tools(services),
             instructions=instructions,
-            default_context=f"Location: {settings.location.name}",
-            now=services.now,
+            default_context=(
+                f"Household location: {settings.location.name} (time zone {settings.location.timezone}). "
+                "All times are local."
+            ),
+            now=services.clock,
             recursion_limit=settings.llm.recursion_limit,
         )
 

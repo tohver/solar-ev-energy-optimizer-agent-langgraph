@@ -45,19 +45,30 @@ def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
 @app.command("seed-db")
 @handle_errors
 def seed_db(
-    days: Annotated[int, typer.Option(min=1, help="Number of days of history, ending yesterday.")] = 30,
+    days: Annotated[
+        int, typer.Option(min=1, max=90, help="Number of days of history, ending yesterday.")
+    ] = 30,
     seed: Annotated[int, typer.Option(help="Random seed; the same seed gives the same data.")] = 42,
 ) -> None:
-    """Create the SQLite database with reproducible sample usage and solar data."""
-    from energy_advisor.data.repository import EnergyRepository
-    from energy_advisor.data.seed import seed_database
+    """Create the household's history (usage, solar) from past weather and prices; replaces old data."""
+    from datetime import timedelta
+
+    from energy_advisor.data.seed import build_history, seed_database
+    from energy_advisor.services.container import build_services
 
     settings = _settings()
-    result = seed_database(EnergyRepository(settings.paths.db), days=days, seed=seed)
+    services = build_services(settings)
+    yesterday = services.clock().date() - timedelta(days=1)
+    with console.status("Fetching past weather and prices..."):
+        history = build_history(
+            services.weather, services.prices, settings.household, settings.location.tz, days, yesterday, seed
+        )
+    result = seed_database(services.repository, history)
     console.print(
         f"[green]Database ready:[/] {settings.paths.db}\n"
         f"  {result.first_day} .. {result.last_day}: {result.usage_rows} usage rows, "
-        f"{result.generation_rows} solar rows (replaced {sum(result.deleted.values())} old rows)"
+        f"{result.generation_rows} solar rows (replaced {sum(result.deleted.values())} old rows)\n"
+        f"  weather: {result.weather_source} | prices: {result.price_source}"
     )
 
 
@@ -175,8 +186,8 @@ def evaluate(
         )
 
     console.print(f"Running {len(cases)} cases...")
-    results = run_evaluation(advisor, judge, cases, now=services.now, on_result=progress)
-    report = generate_report(results, now=services.now())
+    results = run_evaluation(advisor, judge, cases, now=services.clock, on_result=progress)
+    report = generate_report(results, now=services.clock())
     out_dir = out or settings.paths.reports
     paths = save_report(report, results, out_dir)
 

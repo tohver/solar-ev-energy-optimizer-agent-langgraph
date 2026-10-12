@@ -9,7 +9,7 @@ import pytest
 from energy_advisor.agent.graph import EnergyAdvisor
 from energy_advisor.agent.trace import final_answer
 from energy_advisor.clients.open_meteo import OpenMeteoClient
-from energy_advisor.config import Settings
+from energy_advisor.config import LocationSettings, Settings
 from energy_advisor.llm import make_embeddings
 from energy_advisor.rag.ingest import build_index
 from energy_advisor.services.container import build_services
@@ -29,9 +29,14 @@ def live_settings(settings):
 
 @pytest.mark.integration
 def test_live_weather_forecast():
-    result = WeatherService(OpenMeteoClient()).forecast("San Francisco, CA", days=2)
+    from datetime import datetime
+
+    location = LocationSettings()
+    result = WeatherService(OpenMeteoClient(), location, lambda: datetime.now(location.tz)).forecast(
+        None, days=2
+    )
     assert result["source"].startswith("open-meteo")
-    assert len(result["hourly"]) == 48
+    assert len(result["hourly"]) >= 47  # 47-49 on daylight-saving days
 
 
 @pytest.mark.llm

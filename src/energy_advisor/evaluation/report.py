@@ -3,7 +3,7 @@
 import json
 from collections import Counter
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -93,7 +93,7 @@ def generate_report(results: Sequence[CaseResult], now: datetime | None = None) 
         )
 
     return EvaluationReport(
-        generated_at=(now or datetime.now()).isoformat(timespec="seconds"),
+        generated_at=(now or datetime.now(UTC)).isoformat(timespec="seconds"),
         total_tests=len(rows),
         overall_score=round((response_score + tool_score) / 2, 2),
         response_score=response_score,
@@ -162,7 +162,7 @@ def render_markdown(report: EvaluationReport, results: Sequence[CaseResult] = ()
 def save_report(report: EvaluationReport, results: Sequence[CaseResult], out_dir: Path) -> dict[str, Path]:
     """Write ``eval-<timestamp>.md`` and ``.json``; returns the written paths."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = "eval-" + report.generated_at.replace(":", "").replace("T", "-")
+    stem = "eval-" + datetime.fromisoformat(report.generated_at).strftime("%Y-%m-%d-%H%M%S")
     md_path, json_path = out_dir / f"{stem}.md", out_dir / f"{stem}.json"
     md_path.write_text(render_markdown(report, results), encoding="utf-8")
     payload = {

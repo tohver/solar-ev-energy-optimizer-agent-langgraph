@@ -1,19 +1,20 @@
 """Wiring: build every service from ``Settings`` in one place (dependency injection)."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 
 import httpx
 
 from energy_advisor.clients.open_meteo import OpenMeteoClient
+from energy_advisor.clients.prices.base import PriceProvider
+from energy_advisor.clients.prices.synthetic import SyntheticPriceProvider
 from energy_advisor.config import Settings
 from energy_advisor.data.repository import EnergyRepository
 from energy_advisor.llm import make_chat_model, make_embeddings
 from energy_advisor.rag.knowledge_base import KnowledgeBase
 from energy_advisor.rag.rerank import LLMReranker
-from energy_advisor.services.prices import MockPriceService
+from energy_advisor.services.prices import PriceService
 from energy_advisor.services.weather import WeatherService
+from energy_advisor.timeutils import Clock, make_clock
 
 
 @dataclass
@@ -21,22 +22,33 @@ class Services:
     settings: Settings
     repository: EnergyRepository
     weather: WeatherService
-    prices: MockPriceService
+    prices: PriceService
     knowledge_base: KnowledgeBase
-    now: Callable[[], datetime]
+    clock: Clock
+
+
+def build_price_providers(settings: Settings, http: httpx.Client | None) -> list[PriceProvider]:
+    return [SyntheticPriceProvider(settings.location.tz)]
 
 
 def build_services(
     settings: Settings,
     http: httpx.Client | None = None,
-    now: Callable[[], datetime] = datetime.now,
+    clock: Clock | None = None,
+    price_providers: list[PriceProvider] | None = None,
 ) -> Services:
     """Nothing here touches the network or needs an API key; LLM clients are created on first use."""
+    clock = clock or make_clock(settings.location.tz)
     return Services(
         settings=settings,
         repository=EnergyRepository(settings.paths.db),
-        weather=WeatherService(OpenMeteoClient(http), now=now),
-        prices=MockPriceService(settings.pricing, today=lambda: now().date()),
+        weather=WeatherService(OpenMeteoClient(http), settings.location, clock),
+        prices=PriceService(
+            price_providers or build_price_providers(settings, http),
+            settings.tariff,
+            settings.location,
+            clock,
+        ),
         knowledge_base=KnowledgeBase(
             persist_dir=settings.paths.vectorstore,
             rag=settings.rag,
@@ -45,5 +57,5 @@ def build_services(
                 make_chat_model(settings, settings.llm.reranker_model), settings.rag.min_rerank_score
             ),
         ),
-        now=now,
+        clock=clock,
     )

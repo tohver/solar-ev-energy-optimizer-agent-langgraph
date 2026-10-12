@@ -6,57 +6,77 @@ Docstrings matter: the LLM reads them to decide which tool to call.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 
-from energy_advisor.data.aggregation import summarize_generation, summarize_recent, summarize_usage
+from energy_advisor.data.aggregation import (
+    energy_balance,
+    summarize_generation,
+    summarize_recent,
+    summarize_usage,
+)
 from energy_advisor.services.container import Services
-from energy_advisor.services.prices import InvalidDateError, parse_date
 from energy_advisor.services.savings import calculate_savings
+from energy_advisor.timeutils import InvalidDateError, day_bounds_utc, parse_day
 
 logger = logging.getLogger(__name__)
+DEVICE_TYPES = ("EV", "heat_pump", "appliance", "base_load")
 
 
 def build_tools(services: Services) -> list[BaseTool]:
     repo = services.repository
     settings = services.settings
+    tz = settings.location.tz
+
+    def utc_range(start_date: str, end_date: str) -> tuple[datetime, datetime, int]:
+        first, last = parse_day(start_date), parse_day(end_date)
+        if last < first:
+            raise InvalidDateError("end_date must not be before start_date")
+        start, end = day_bounds_utc(first, last, tz)
+        return start, end, (last - first).days + 1
 
     @tool
-    def get_weather_forecast(location: str, days: int = 3) -> dict[str, Any]:
-        """Get the hourly weather forecast for a location: temperature, sky condition and solar irradiance.
+    def get_weather_forecast(location: str | None = None, days: int = 3) -> dict[str, Any]:
+        """Hourly weather forecast from today: temperature, sky condition and solar irradiance (W/m2).
 
         Args:
-            location: Place name, e.g. "San Francisco, CA".
+            location: Place name; leave empty for the household's own location (Munich).
             days: Number of days to forecast (1-7).
         """
         return services.weather.forecast(location, days)
 
     @tool
     def get_electricity_prices(date: str | None = None) -> dict[str, Any]:
-        """Get hourly electricity rates (off_peak / mid_peak / peak) and demand charges for one day.
+        """Hourly household electricity prices (EUR/kWh) for one day under the dynamic tariff.
+
+        Prices follow the day-ahead market; each hour is labelled off_peak / mid_peak / peak relative
+        to that day. Check `is_estimate`: tomorrow's prices are only published around 13:00.
 
         Args:
-            date: Date in YYYY-MM-DD format (defaults to today).
+            date: Day in YYYY-MM-DD format (defaults to today).
         """
         try:
             return services.prices.get_prices(date)
         except InvalidDateError as exc:
             return {"error": str(exc)}
+        except Exception as exc:
+            logger.exception("get_electricity_prices failed")
+            return {"error": f"Failed to get electricity prices: {exc}"}
 
     @tool
     def query_energy_usage(start_date: str, end_date: str, device_type: str | None = None) -> dict[str, Any]:
-        """Query the household's historical energy consumption (aggregated) for a date range.
+        """The household's historical electricity consumption and cost (EUR) for a date range, aggregated.
 
         Args:
             start_date: First day, YYYY-MM-DD.
             end_date: Last day (inclusive), YYYY-MM-DD.
-            device_type: Optional filter, e.g. "EV", "HVAC" or "appliance" (case-insensitive).
+            device_type: Optional filter: "EV", "heat_pump", "appliance" or "base_load" (case-insensitive).
         """
         try:
-            start, end = parse_date(start_date), parse_date(end_date) + timedelta(days=1)
-            records = repo.usage_between(_midnight(start), _midnight(end))
+            start, end, days = utc_range(start_date, end_date)
+            records = repo.usage_between(start, end)
             if device_type:
                 available = sorted({r.device_type for r in records if r.device_type})
                 wanted = device_type.strip().lower()
@@ -70,41 +90,51 @@ def build_tools(services: Services) -> list[BaseTool]:
                 "start_date": start_date,
                 "end_date": end_date,
                 "device_type": device_type,
-                **summarize_usage(records),
+                **summarize_usage(records, tz, days),
             }
+        except InvalidDateError as exc:
+            return {"error": str(exc)}
         except Exception as exc:
             logger.exception("query_energy_usage failed")
             return {"error": f"Failed to query energy usage: {exc}"}
 
     @tool
     def query_solar_generation(start_date: str, end_date: str) -> dict[str, Any]:
-        """Query the household's historical solar generation (aggregated) for a date range.
+        """The household's historical solar (PV) generation for a date range, aggregated, plus the
+        energy balance: how much solar was used at home, exported, and how much came from the grid.
 
         Args:
             start_date: First day, YYYY-MM-DD.
             end_date: Last day (inclusive), YYYY-MM-DD.
         """
         try:
-            start, end = parse_date(start_date), parse_date(end_date) + timedelta(days=1)
-            records = repo.generation_between(_midnight(start), _midnight(end))
+            start, end, days = utc_range(start_date, end_date)
+            generation = repo.generation_between(start, end)
+            balance = energy_balance(
+                repo.usage_between(start, end), generation, settings.tariff.feed_in_tariff_eur_per_kwh
+            )
             return {
                 "start_date": start_date,
                 "end_date": end_date,
-                **summarize_generation(records, days_in_range=(end - start).days),
+                "pv_system_kwp": settings.household.pv_peak_kw,
+                **summarize_generation(generation, tz, days),
+                "energy_balance": balance,
             }
+        except InvalidDateError as exc:
+            return {"error": str(exc)}
         except Exception as exc:
             logger.exception("query_solar_generation failed")
             return {"error": f"Failed to query solar generation: {exc}"}
 
     @tool
     def get_recent_energy_summary(hours: int = 24) -> dict[str, Any]:
-        """Get a summary of energy usage and solar generation over the last N hours.
+        """Summary of electricity use and solar generation over the last N hours.
 
         Args:
             hours: Number of hours to look back (default 24).
         """
         try:
-            end = services.now()
+            end = services.clock()
             start = end - timedelta(hours=hours)
             return summarize_recent(
                 repo.usage_between(start, end), repo.generation_between(start, end), hours
@@ -118,7 +148,7 @@ def build_tools(services: Services) -> list[BaseTool]:
         """Search the energy-saving knowledge base (RAG). Returns ranked tips with their source file to cite.
 
         Args:
-            query: What to look for, e.g. "pre-cooling before peak hours".
+            query: What to look for, e.g. "heat pump flow temperature".
             max_results: Maximum number of tips (1-10).
         """
         try:
@@ -135,30 +165,31 @@ def build_tools(services: Services) -> list[BaseTool]:
         price_per_kwh: float | None = None,
         optimized_price_per_kwh: float | None = None,
     ) -> dict[str, Any]:
-        """Calculate energy, cost and CO2 savings of an optimization.
+        """Calculate energy, cost (EUR) and CO2 savings of an optimization.
 
         Two kinds of optimization are supported:
         - Using LESS energy: pass a smaller optimized_usage_kwh.
-        - Using the SAME energy at a CHEAPER time (load shifting, e.g. peak -> off-peak):
-          keep optimized_usage_kwh equal to current_usage_kwh, pass the expensive rate as
-          price_per_kwh and the cheaper rate as optimized_price_per_kwh.
+        - Using the SAME energy at a CHEAPER time (load shifting): keep optimized_usage_kwh equal to
+          current_usage_kwh, pass the expensive rate as price_per_kwh and the cheaper rate as
+          optimized_price_per_kwh. For own solar power use the feed-in tariff as its price.
 
         Args:
             device_type: Device being optimized.
             current_usage_kwh: Current energy use in kWh (per day / per cycle).
             optimized_usage_kwh: Energy use after the optimization (same period).
-            price_per_kwh: Current price per kWh (defaults to the base tariff price).
-            optimized_price_per_kwh: Price per kWh after the optimization (defaults to price_per_kwh).
+            price_per_kwh: Current price in EUR/kWh (defaults to a typical fixed tariff).
+            optimized_price_per_kwh: Price after the optimization (defaults to price_per_kwh).
         """
         try:
+            tariff = settings.tariff
             return calculate_savings(
                 device_type=device_type,
                 current_usage_kwh=current_usage_kwh,
                 optimized_usage_kwh=optimized_usage_kwh,
-                price_per_kwh=settings.pricing.base_price_per_kwh if price_per_kwh is None else price_per_kwh,
+                price_per_kwh=tariff.fixed_price_eur_per_kwh if price_per_kwh is None else price_per_kwh,
                 optimized_price_per_kwh=optimized_price_per_kwh,
                 co2_kg_per_kwh=settings.household.co2_kg_per_kwh,
-                currency=settings.pricing.currency,
+                currency=tariff.currency,
             )
         except Exception as exc:
             logger.exception("calculate_energy_savings failed")
@@ -173,7 +204,3 @@ def build_tools(services: Services) -> list[BaseTool]:
         search_energy_tips,
         calculate_energy_savings,
     ]
-
-
-def _midnight(day: date) -> datetime:
-    return datetime.combine(day, datetime.min.time())

@@ -1,17 +1,17 @@
-EV CHARGING AND TIME-OF-USE TARIFFS
+EV CHARGING, DYNAMIC TARIFFS AND GRID RULES IN GERMANY
 
-Electric vehicles are usually the largest flexible load in the home. A typical EV uses 10-15 kWh per day and a Level 2 charger draws 7 kW, so a full recharge takes 2-6 hours.
+The electric car is usually the largest flexible load in the home. A compact EV needs about 15-20 kWh per 100 km. An 11 kW wallbox adds about 60 km of range per hour of charging, so a typical daily commute is recharged in about one hour.
 
-Best times to charge: The cheapest time is overnight off-peak (typically 22:00-06:00). If you have rooftop solar, the next best time is midday on sunny days (10:00-15:00), when charging uses free solar surplus. Never charge during the evening peak (17:00-21:00) unless necessary; peak rates can be 2-3 times off-peak rates.
+Dynamic tariffs: Since 2025 every electricity supplier in Germany must offer a dynamic tariff to customers with a smart meter (section 41a of the Energy Industry Act, EnWG). The price follows the day-ahead market of the power exchange (now in 15-minute steps), plus fixed components: grid fees, levies, electricity tax, concession fee, supplier margin and 19% VAT. The fixed components are a large part of the final price, so household price swings are smaller than on the exchange, but a spread of 10-20 cents per kWh within one day is common.
 
-Cost example: Charging 12 kWh at an off-peak rate of 0.08 USD/kWh costs about 0.96 USD, versus 3.12 USD at a peak rate of 0.26 USD/kWh - a saving of roughly 790 USD per year for daily charging.
+When prices are known: The day-ahead auction for the next day closes at 12:00; results are published around 12:45-13:00. Before that, prices for tomorrow can only be estimated.
 
-Scheduled charging: Set the departure time in the car or charger app and let it start automatically at the cheapest hour. Most EVs and chargers support schedules and price-based smart charging.
+Cheapest times to charge: Usually at night and, on sunny days, around midday when solar power floods the market. The evening (about 17:00-20:00) is usually the most expensive time. Negative exchange prices occur on sunny, windy days with low demand; with a dynamic tariff the household price then drops accordingly but usually stays above zero because of the fixed components.
 
-Battery care: For daily use, charge to 80% and keep the battery above 20%. Charge to 100% only before long trips, and avoid leaving the car fully charged for days.
+Charging from solar: Charging from your own PV system costs only the feed-in tariff you give up (around 8 cents per kWh), far less than grid power. Use a wallbox with a solar surplus mode, or set the charging window from late morning until mid-afternoon on sunny days.
 
-Weather effects: Cold weather reduces range by 20-40% and increases charging needs. Pre-condition the cabin while plugged in so the energy comes from the grid or solar, not the battery.
+Section 14a EnWG: Wallboxes above 4.2 kW installed since 2024 count as controllable consumer devices. The grid operator may temporarily limit their power to 4.2 kW when the local grid is overloaded; it never switches them off completely. In return the household gets reduced grid fees: a flat annual reduction (module 1), a reduced price for separately metered devices (module 2), or since 2025 additionally time-variable grid fees (module 3) that are cheaper in off-peak hours.
 
-Appliances and tariffs: Time-of-use pricing applies to all flexible loads. Dishwashers, washing machines and dryers consume 1-2 kWh per cycle; running them off-peak saves about 0.10-0.15 USD per cycle compared with peak. Heat pump dryers and cold washes cut energy further.
+Registration: An 11 kW wallbox must be reported to the grid operator; a 22 kW wallbox needs approval.
 
-Pool pumps: A variable-speed pool pump uses 70% less energy than single-speed models. Run it at low speed for longer periods, scheduled at midday on sunny days or off-peak, and avoid the 17:00-21:00 peak.
+Battery care: For daily use charge to about 80% and charge to 100% only before long trips. In winter, pre-heat the car while it is plugged in; cold reduces the range by about 15-30%.

@@ -13,7 +13,7 @@ from energy_advisor.evaluation.judge import LLMJudge, ResponseScores
 from energy_advisor.evaluation.metrics import evaluate_tool_usage
 from energy_advisor.evaluation.report import generate_report, render_markdown, save_report
 from energy_advisor.evaluation.runner import run_evaluation
-from tests.helpers import NOW, FakeToolModel
+from tests.helpers import BERLIN, NOW, FakeToolModel
 
 
 # ----------------------------------------------------------------------------- cases
@@ -67,7 +67,7 @@ class FixedScorer:
 
 def test_judge_clamps_scores_and_includes_date_in_prompt():
     scorer = FixedScorer(0.8)
-    e = LLMJudge(scorer).evaluate("q", "a", "expected", "tools", datetime(2026, 10, 12))
+    e = LLMJudge(scorer).evaluate("q", "a", "expected", "tools", datetime(2026, 10, 12, tzinfo=BERLIN))
     assert (e.accuracy, e.usefulness) == (0.8, 1.0)
     assert e.overall == pytest.approx(0.85)
     assert "Monday, 2026-10-12" in scorer.prompts[0]
@@ -92,7 +92,7 @@ def results(services):
             AIMessage(content="", tool_calls=[{"name": "get_electricity_prices", "args": {}, "id": "c1"}]),
             AIMessage(content="Run it at night."),
         ]
-    advisor = EnergyAdvisor(FakeToolModel(messages=iter(responses)), build_tools(services), now=lambda: NOW)
+    advisor = EnergyAdvisor(FakeToolModel(messages=iter(responses)), build_tools(services), lambda: NOW)
     cases = [
         EvalCase(id="a", question="q1", expected_tools=["get_electricity_prices"], expected_response="r"),
         EvalCase(

@@ -1,5 +1,6 @@
 """Smoke tests of the command-line interface."""
 
+import httpx
 import pytest
 from typer.testing import CliRunner
 
@@ -15,6 +16,12 @@ def cli_env(tmp_path, monkeypatch):
     monkeypatch.setenv("PATHS__VECTORSTORE", str(tmp_path / "vectorstore"))
     monkeypatch.setenv("PATHS__REPORTS", str(tmp_path / "reports"))
     monkeypatch.setenv("OPENAI_API_KEY", "")
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("network disabled in tests", request=request)
+
+    offline = httpx.Client(transport=httpx.MockTransport(refuse))
+    monkeypatch.setattr("energy_advisor.clients.open_meteo.default_http_client", lambda *a, **k: offline)
     return tmp_path
 
 
@@ -29,7 +36,12 @@ def test_seed_db_creates_database(cli_env):
     result = runner.invoke(app, ["seed-db", "--days", "3", "--seed", "1"])
     assert result.exit_code == 0, result.output
     assert (cli_env / "energy.db").exists()
-    assert "216 usage rows" in result.output
+    assert "usage rows" in result.output
+    assert "weather: simulated" in result.output  # offline fallback
+
+
+def test_seed_db_rejects_more_than_90_days(cli_env):
+    assert runner.invoke(app, ["seed-db", "--days", "120"]).exit_code != 0
 
 
 def test_commands_needing_the_llm_fail_cleanly_without_key(cli_env):

@@ -1,67 +1,175 @@
-"""Electricity prices.
+"""Electricity prices for the household: provider chain → coverage check → tariff → tool output."""
 
-Currently a mock time-of-use tariff (the same schedule every day). Phase 4 replaces it with real
-day-ahead market prices behind the same ``get_prices`` interface.
-"""
-
-from collections.abc import Callable
-from datetime import date, datetime
+import logging
+from collections import defaultdict
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from statistics import mean
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from energy_advisor.config import PricingSettings
+from energy_advisor.clients.prices.base import PriceProvider
+from energy_advisor.config import LocationSettings, TariffSettings
+from energy_advisor.domain.prices import PriceSlot, PriceUnavailableError, SpotPrice
+from energy_advisor.services.tariff import retail_price, tariff_assumptions
+from energy_advisor.timeutils import Clock, day_bounds_utc, floor_hour, parse_day
 
-PEAK_HOURS = range(17, 21)  # 17:00-21:00
-MID_PEAK_HOURS = range(6, 22)  # 06:00-22:00 outside the peak window
-
-
-class InvalidDateError(ValueError):
-    pass
-
-
-def parse_date(value: str) -> date:
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as exc:
-        raise InvalidDateError(f"Invalid date '{value}'. Use YYYY-MM-DD format.") from exc
+logger = logging.getLogger(__name__)
+MIN_COVERAGE = 0.99
+PERIODS = ("off_peak", "mid_peak", "peak")
+SUMMARY_HOURS = 4
 
 
-def period_for_hour(hour: int) -> str:
-    if hour in PEAK_HOURS:
-        return "peak"
-    if hour in MID_PEAK_HOURS:
-        return "mid_peak"
-    return "off_peak"
+@dataclass(frozen=True)
+class PriceCurve:
+    start: datetime
+    end: datetime
+    slots: list[PriceSlot]
+    source: str
+    is_estimate: bool
+    attribution: str | None = None
+    notes: list[str] = field(default_factory=list)
 
-
-class MockPriceService:
-    def __init__(self, pricing: PricingSettings, today: Callable[[], date] = date.today) -> None:
-        self._p = pricing
-        self._today = today
-
-    def get_prices(self, day: str | None = None) -> dict[str, Any]:
-        """Hourly rates for one day: off-peak 22-06, peak 17-21 (with demand charge), mid-peak otherwise."""
-        day_obj = parse_date(day) if day else self._today()
-        multipliers = {
-            "off_peak": self._p.off_peak_multiplier,
-            "mid_peak": self._p.mid_peak_multiplier,
-            "peak": self._p.peak_multiplier,
-        }
-        hourly_rates = []
-        for hour in range(24):
-            period = period_for_hour(hour)
-            hourly_rates.append(
-                {
-                    "hour": hour,
-                    "rate": round(self._p.base_price_per_kwh * multipliers[period], 4),
-                    "period": period,
-                    "demand_charge": self._p.peak_demand_charge if period == "peak" else 0.0,
-                }
+    def hourly(self) -> list[tuple[datetime, float, float]]:
+        """(UTC hour start, mean spot EUR/MWh, mean retail EUR/kWh) per hour."""
+        groups: dict[datetime, list[PriceSlot]] = defaultdict(list)
+        for s in self.slots:
+            groups[floor_hour(s.start)].append(s)
+        return [
+            (
+                hour,
+                round(mean(s.spot_eur_per_mwh for s in g), 2),
+                round(mean(s.price_eur_per_kwh for s in g), 4),
             )
-        return {
-            "date": day_obj.isoformat(),
-            "pricing_type": "time_of_use",
-            "source": "mock tariff",
-            "currency": self._p.currency,
-            "unit": "per_kWh",
-            "hourly_rates": hourly_rates,
+            for hour, g in sorted(groups.items())
+        ]
+
+
+def coverage(prices: Sequence[SpotPrice], start: datetime, end: datetime) -> float:
+    covered = sum(((min(p.end, end) - max(p.start, start)) for p in prices), timedelta())
+    return covered / (end - start)
+
+
+class PriceService:
+    def __init__(
+        self,
+        providers: Sequence[PriceProvider],
+        tariff: TariffSettings,
+        location: LocationSettings,
+        clock: Clock,
+    ) -> None:
+        if not providers:
+            raise ValueError("At least one price provider is required")
+        self._providers = list(providers)
+        self._tariff = tariff
+        self._location = location
+        self._tz: ZoneInfo = location.tz
+        self._clock = clock
+
+    # ------------------------------------------------------------------ core
+    def spot_prices(self, start: datetime, end: datetime) -> tuple[list[SpotPrice], PriceProvider, list[str]]:
+        """First provider in the chain that covers ``[start, end)`` completely."""
+        notes = []
+        for provider in self._providers:
+            try:
+                prices = [p for p in provider.fetch(start, end) if start <= p.start < end]
+                if coverage(prices, start, end) < MIN_COVERAGE:
+                    raise PriceUnavailableError("incomplete data")
+                return sorted(prices, key=lambda p: p.start), provider, notes
+            except Exception as exc:
+                logger.info("Price provider %s failed: %s", provider.name, exc)
+                notes.append(f"{provider.name}: {type(exc).__name__}: {exc}")
+        raise PriceUnavailableError("No price provider could deliver prices. " + " | ".join(notes))
+
+    def curve(self, start: datetime, end: datetime) -> PriceCurve:
+        prices, provider, failures = self.spot_prices(start, end)
+        slots = [
+            PriceSlot(p.start, p.end, p.eur_per_mwh, retail_price(p.eur_per_mwh, self._tariff))
+            for p in prices
+        ]
+        notes = []
+        if provider.is_estimate:
+            notes.append(estimate_note(provider.name))
+        if failures:
+            notes.append("Unavailable sources: " + "; ".join(failures))
+        return PriceCurve(start, end, slots, provider.name, provider.is_estimate, provider.attribution, notes)
+
+    def day_curve(self, day: date) -> PriceCurve:
+        return self.curve(*day_bounds_utc(day, day, self._tz))
+
+    def hourly_retail(self, start: datetime, end: datetime) -> tuple[dict[datetime, float], str]:
+        """Retail price per UTC hour for a longer interval (used to cost the household's history)."""
+        curve = self.curve(start, end)
+        return {hour: retail for hour, _, retail in curve.hourly()}, curve.source
+
+    # ------------------------------------------------------------------ tool output
+    def get_prices(self, day: str | None = None) -> dict[str, Any]:
+        """Hourly retail prices for one local day, with cheapest/most expensive hours."""
+        day_obj = parse_day(day) if day else self._clock().astimezone(self._tz).date()
+        curve = self.day_curve(day_obj)
+        return price_output(curve, day_obj, self._tz, self._location, self._tariff)
+
+
+def estimate_note(source: str) -> str:
+    return (
+        f"These prices are an ESTIMATE ({source}), not published market prices. Day-ahead prices for "
+        "tomorrow are published around 13:00 CET; tell the user that the schedule is based on an estimate."
+    )
+
+
+def assign_periods(prices: Sequence[float]) -> list[str]:
+    """Label each hour off_peak / mid_peak / peak by price terciles of the day."""
+    ranked = sorted(range(len(prices)), key=lambda i: prices[i])
+    labels = [""] * len(prices)
+    for position, index in enumerate(ranked):
+        labels[index] = PERIODS[min(2, position * 3 // max(1, len(prices)))]
+    return labels
+
+
+def price_output(
+    curve: PriceCurve, day: date, tz: ZoneInfo, location: LocationSettings, tariff: TariffSettings
+) -> dict[str, Any]:
+    hourly = curve.hourly()
+    retail = [r for _, _, r in hourly]
+    periods = assign_periods(retail)
+    rows = [
+        {
+            "hour": hour.astimezone(tz).hour,
+            "time": hour.astimezone(tz).isoformat(timespec="minutes"),
+            "rate": r,
+            "spot_eur_per_mwh": spot,
+            "period": period,
         }
+        for (hour, spot, r), period in zip(hourly, periods, strict=True)
+    ]
+    by_price = sorted(rows, key=lambda x: x["rate"])
+    output: dict[str, Any] = {
+        "date": day.isoformat(),
+        "timezone": str(tz),
+        "bidding_zone": location.bidding_zone,
+        "currency": tariff.currency,
+        "unit": "EUR per kWh (retail, incl. surcharges and VAT)",
+        "pricing_type": "dynamic tariff: day-ahead spot price + surcharges + VAT",
+        "source": curve.source,
+        "is_estimate": curve.is_estimate,
+        "summary": {
+            "average_rate": round(mean(retail), 4),
+            "min_rate": min(retail),
+            "max_rate": max(retail),
+            "cheapest_hours": sorted(_label(r) for r in by_price[:SUMMARY_HOURS]),
+            "most_expensive_hours": sorted(_label(r) for r in by_price[-SUMMARY_HOURS:]),
+            "negative_spot_price_hours": [_label(r) for r in rows if r["spot_eur_per_mwh"] < 0],
+        },
+        "tariff_assumptions": tariff_assumptions(tariff),
+        "hourly_rates": rows,
+    }
+    if curve.attribution:
+        output["attribution"] = curve.attribution
+    if curve.notes:
+        output["note"] = " ".join(curve.notes)
+    return output
+
+
+def _label(row: dict[str, Any]) -> str:
+    return f"{row['time'][11:16]}"

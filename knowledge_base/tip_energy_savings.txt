@@ -1,15 +1,17 @@
-Saving energy at home can be simple and effective. Turn off lights when not in use and unplug devices that draw standby power. Use natural lighting during the day and replace incandescent bulbs with energy-efficient LEDs. Keep appliances clean and well-maintained to ensure they operate efficiently.
+GENERAL ENERGY-SAVING TIPS
 
-Smart thermostats can save up to 10% on heating and cooling costs by automatically adjusting temperatures when you're away. Set your thermostat to 68°F in winter and 78°F in summer for optimal energy savings.
+Room temperature: The German Environment Agency (UBA) recommends about 20 degrees Celsius in living rooms, 18 degrees in the kitchen and 17 degrees in bedrooms. Each degree less saves around 6% of heating energy.
 
-Wash clothes in cold water and only run full loads. Use the dryer's moisture sensor instead of timed drying. Clean the lint filter after every load to improve efficiency.
+Ventilation: Open windows fully for 5-10 minutes several times a day (shock ventilation) instead of leaving them tilted. Tilted windows cool the walls and waste heat for hours. Turn thermostats down while ventilating.
 
-Seal air leaks around windows and doors with weatherstripping or caulk. Add insulation to attics and walls to reduce heating and cooling needs.
+Standby consumption: Televisions, routers, consoles, coffee machines and chargers draw power around the clock. Standby can make up 5-10% of a household's electricity use. Switchable power strips or smart plugs cut it off at night.
 
-Use power strips to easily turn off multiple devices at once. Many electronics continue to draw power even when turned off, known as phantom load.
+Lighting: LED bulbs use about 80% less electricity than incandescent bulbs and last much longer.
 
-Consider energy-efficient appliances when replacing old ones. Look for ENERGY STAR certified products that use 10-50% less energy than standard models.
+Hot water: A water-saving shower head (about 6-9 litres per minute) cuts hot water use noticeably. With a heat pump, keep the hot water temperature moderate (around 48-50 degrees Celsius) and let the installer configure a regular legionella protection cycle.
 
-Plant trees or install awnings to provide shade for your home during summer months. This can reduce cooling costs by up to 25%.
+Insulation and drafts: Seal gaps around windows and doors, close roller shutters at night in winter, and keep radiators free of furniture and curtains so heat can circulate.
 
-Use ceiling fans to circulate air and make rooms feel cooler, allowing you to raise the thermostat temperature by 4°F without discomfort.
+Know your consumption: A typical German household of three to four people uses about 3,500-4,500 kWh of electricity per year without heat pump and electric car. A heat pump adds roughly 3,000-5,000 kWh, an electric car about 2,000-2,500 kWh for 12,000 km. Comparing your own figures with these values shows where the big savings are.
+
+Price awareness: With a dynamic tariff the same kWh can cost much more in the evening than at midday. Shifting flexible consumption is often worth more than small reductions.

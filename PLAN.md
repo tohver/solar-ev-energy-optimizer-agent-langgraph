@@ -716,14 +716,32 @@ Findings from the first CLI runs (input for later phases):
   The new generator (phase 3) models single appliance cycles.
 - The LLM judge also makes date mistakes; keep the deterministic tool metrics next to it.
 
-### Phase 3: Munich
-- [ ] Location, time-zone-aware time helpers, DST tests
-- [ ] Open-Meteo client with fixed coordinates; Munich-aware simulated fallback
-- [ ] New seeded generator (real past weather; heat pump, EV, appliances; `cost_eur`)
-- [ ] Localize the 8 KB documents; re-run the retrieval benchmark
-- [ ] Update the prompt and evaluation cases (EUR, heat pump, °C)
+### Phase 3: Munich ✅
+- [x] Location, time-zone-aware time helpers, DST tests (ruff `DTZ` enabled: no naive datetimes)
+- [x] Open-Meteo client with fixed coordinates; Munich-aware simulated fallback
+- [x] New seeded generator (real past weather; heat pump, EV, appliances; `cost_eur`)
+- [x] Localize the 8 KB documents; re-run the retrieval benchmark
+- [x] Update the prompt and evaluation cases (EUR, heat pump, °C)
 - **Done when:** no "USD", "°F" or "San Francisco" is left (`rg -i "usd|°f|san francisco"` is empty), and
   all tests pass.
+
+Implementation notes:
+- Open-Meteo is queried in UTC: with `timezone=Europe/Berlin` it returns 24 ambiguous wall-clock hours on the
+  25-hour day in October. Radiation is labelled with the END of its hour and is shifted accordingly.
+- Timestamps are stored as UTC through a SQLAlchemy `TypeDecorator` that rejects naive datetimes.
+- The synthetic fallback weather uses the real sun position for the coordinates (correct day length for
+  Munich in every season) and approximate Munich monthly temperatures.
+- Prices in this phase come from a synthetic German day-ahead profile behind the final `PriceService`
+  interface (provider chain, coverage check, tariff); phase 4 adds the real providers.
+- `seed-db` recreates the tables (the data is generated, so schema changes need no migration) and is limited
+  to 90 days, the history window of Open-Meteo's forecast API.
+- Geocoding now flags ambiguous names: "Frankfurt" returns Frankfurt am Main, Frankfurt (Bavaria) and
+  Frankfurt (Oder).
+- Retrieval benchmark after localization (12 new labelled queries): vector 1.00 / 0.96, hybrid 1.00 / 0.96,
+  hybrid + re-ranking 0.92 / 0.88. On this small, cleanly separated corpus re-ranking no longer helps.
+- First live run: the calendar fix works ("next Monday" resolved correctly), but the agent recommended
+  charging 11:00-14:00 for a 07:00 deadline and did not mention that prices were estimated. This is the
+  motivation for the deterministic scheduler in phase 5.
 
 ### Phase 4: Real electricity prices
 - [ ] `PriceProvider` protocol; Energy-Charts and aWATTar providers; estimate provider

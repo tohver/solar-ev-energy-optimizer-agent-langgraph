@@ -1,118 +1,136 @@
-"""Client for the free Open-Meteo APIs (no key needed): geocoding and hourly forecast."""
+"""Client for the free Open-Meteo APIs (no key needed): geocoding and hourly weather.
 
-from collections import Counter
-from datetime import datetime
+All requests use ``timezone=UTC``: local wall-clock times are ambiguous on daylight-saving days,
+so conversion to local time happens in our code.
+"""
+
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
 import httpx
 
+from energy_advisor.domain.weather import HourlyWeather, condition_from_wmo
+
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 HOURLY_VARIABLES = "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,shortwave_radiation"
 CURRENT_VARIABLES = "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
-DAYTIME_HOURS = range(8, 18)  # the daytime sky is what matters for solar
+USER_AGENT = "solar-ev-energy-optimizer (github.com/tohver/solar-ev-energy-optimizer-agent-langgraph)"
 
 
 class LocationNotFoundError(ValueError):
     pass
 
 
-def condition_from_wmo(code: int | None) -> str:
-    """Map a WMO weather code (used by Open-Meteo) to the 4 sky conditions used across the project."""
-    if code is None:
-        return "unknown"
-    if code <= 1:
-        return "sunny"  # clear / mainly clear
-    if code == 2:
-        return "partly_cloudy"
-    if code in (3, 45, 48):
-        return "cloudy"  # overcast / fog
-    return "rainy"  # drizzle, rain, snow, showers, thunderstorm
+@dataclass(frozen=True)
+class Place:
+    name: str
+    latitude: float
+    longitude: float
+    country: str | None = None
+    admin1: str | None = None
+    timezone: str | None = None
+    other_matches: int = 0
+
+    @property
+    def label(self) -> str:
+        return ", ".join(p for p in (self.name, self.admin1, self.country) if p)
+
+
+@dataclass(frozen=True)
+class WeatherResponse:
+    hours: list[HourlyWeather]
+    current: dict[str, Any]
+
+
+def default_http_client(timeout: float = 15.0) -> httpx.Client:
+    return httpx.Client(timeout=timeout, headers={"User-Agent": USER_AGENT})
 
 
 class OpenMeteoClient:
-    def __init__(self, http: httpx.Client | None = None, timeout: float = 10.0) -> None:
-        self._http = http or httpx.Client(timeout=timeout)
-        # Cache per instance: the same place name is geocoded once.
-        self.geocode = lru_cache(maxsize=64)(self._geocode)
+    def __init__(self, http: httpx.Client | None = None) -> None:
+        self._http = http or default_http_client()
+        self.geocode = lru_cache(maxsize=64)(self._geocode)  # one lookup per place name
 
-    def _geocode(self, location: str) -> dict[str, Any]:
-        """Resolve 'San Francisco, CA' to coordinates (uses the text before the first comma)."""
+    def _geocode(self, location: str) -> Place:
+        """Resolve 'Hamburg, Germany' to coordinates (searches the text before the first comma)."""
         name = location.split(",")[0].strip()
-        resp = self._http.get(GEOCODING_URL, params={"name": name, "count": 1})
+        resp = self._http.get(GEOCODING_URL, params={"name": name, "count": 5})
         resp.raise_for_status()
         results = resp.json().get("results") or []
         if not results:
             raise LocationNotFoundError(f"Location not found: {location}")
-        r = results[0]
-        return {
-            "name": r.get("name"),
-            "country": r.get("country"),
-            "admin1": r.get("admin1"),
-            "latitude": r["latitude"],
-            "longitude": r["longitude"],
-        }
+        best = results[0]  # Open-Meteo ranks by relevance and population
+        # other places whose name contains the searched text, e.g. "Frankfurt" -> Frankfurt (Oder)
+        same_name = [r for r in results[1:] if name.lower() in str(r.get("name", "")).lower()]
+        return Place(
+            name=best["name"],
+            latitude=best["latitude"],
+            longitude=best["longitude"],
+            country=best.get("country"),
+            admin1=best.get("admin1"),
+            timezone=best.get("timezone"),
+            other_matches=len(same_name),
+        )
 
-    def forecast(self, location: str, days: int) -> dict[str, Any]:
-        """Live hourly forecast: temperature, humidity, wind, sky condition and solar irradiance (W/m2)."""
-        place = self.geocode(location)
+    def weather(self, latitude: float, longitude: float, start: datetime, end: datetime) -> WeatherResponse:
+        """Hourly weather for the UTC interval ``[start, end)``, plus current conditions.
+
+        Works for the past (about 3 months) and the future (up to 16 days).
+        """
         resp = self._http.get(
             FORECAST_URL,
             params={
-                "latitude": place["latitude"],
-                "longitude": place["longitude"],
+                "latitude": latitude,
+                "longitude": longitude,
                 "hourly": HOURLY_VARIABLES,
                 "current": CURRENT_VARIABLES,
-                "forecast_days": days,
-                "timezone": "auto",
+                "timezone": "UTC",
                 "wind_speed_unit": "ms",
+                "start_date": start.astimezone(UTC).date().isoformat(),
+                # radiation is labelled with the END of its hour, so fetch one extra hour at the end
+                "end_date": (end.astimezone(UTC) + timedelta(hours=1)).date().isoformat(),
             },
         )
         resp.raise_for_status()
-        return parse_forecast(resp.json(), location, place, days)
+        return WeatherResponse(parse_hourly(resp.json(), start, end), parse_current(resp.json()))
 
 
-def parse_forecast(data: dict[str, Any], location: str, place: dict[str, Any], days: int) -> dict[str, Any]:
-    """Convert the Open-Meteo JSON response into the tool's output format."""
+def parse_hourly(data: dict[str, Any], start: datetime, end: datetime) -> list[HourlyWeather]:
+    """Convert Open-Meteo's column arrays into ``HourlyWeather`` rows for hours in ``[start, end)``.
+
+    ``shortwave_radiation`` is the mean over the PRECEDING hour, so the value labelled 13:00 belongs
+    to the hour 12:00-13:00; temperature and the other values are instantaneous.
+    """
     h = data["hourly"]
-    hourly = []
-    daytime: dict[str, list[str]] = {}
-    for i, ts in enumerate(h["time"]):
-        dt = datetime.fromisoformat(ts)
-        condition = condition_from_wmo(h["weather_code"][i])
-        hourly.append(
-            {
-                "date": dt.date().isoformat(),
-                "hour": dt.hour,
-                "temperature_c": h["temperature_2m"][i],
-                "condition": condition,
-                "solar_irradiance": h["shortwave_radiation"][i],
-                "humidity": h["relative_humidity_2m"][i],
-                "wind_speed": h["wind_speed_10m"][i],
-            }
+    times = [datetime.fromisoformat(t).replace(tzinfo=UTC) for t in h["time"]]
+    radiation_for_hour_start = {
+        t - timedelta(hours=1): r for t, r in zip(times, h["shortwave_radiation"], strict=True)
+    }
+    rows = []
+    for i, t in enumerate(times):
+        if not (start <= t < end) or h["temperature_2m"][i] is None:
+            continue
+        rows.append(
+            HourlyWeather(
+                time=t,
+                temperature_c=h["temperature_2m"][i],
+                irradiance_w_m2=radiation_for_hour_start.get(t) or 0.0,
+                condition=condition_from_wmo(h["weather_code"][i]),
+                humidity=h["relative_humidity_2m"][i],
+                wind_speed=h["wind_speed_10m"][i],
+            )
         )
-        if dt.hour in DAYTIME_HOURS:
-            daytime.setdefault(dt.date().isoformat(), []).append(condition)
+    return rows
 
-    cur = data.get("current", {})
-    resolved = f"{place['name']}, {place.get('admin1') or ''} {place.get('country') or ''}".strip()
+
+def parse_current(data: dict[str, Any]) -> dict[str, Any]:
+    cur = data.get("current") or {}
     return {
-        "location": location,
-        "resolved_location": resolved,
-        "source": "open-meteo.com (live forecast)",
-        "timezone": data.get("timezone"),
-        "forecast_days": days,
-        "units": {"temperature": "C", "solar_irradiance": "W/m2", "wind_speed": "m/s", "humidity": "%"},
-        "current": {
-            "temperature_c": cur.get("temperature_2m"),
-            "condition": condition_from_wmo(cur.get("weather_code")),
-            "humidity": cur.get("relative_humidity_2m"),
-            "wind_speed": cur.get("wind_speed_10m"),
-        },
-        "daily_conditions": {d: Counter(c).most_common(1)[0][0] for d, c in daytime.items()},
-        "daily_peak_irradiance": {
-            d: max(x["solar_irradiance"] or 0 for x in hourly if x["date"] == d) for d in daytime
-        },
-        "hourly": hourly,
+        "temperature_c": cur.get("temperature_2m"),
+        "condition": condition_from_wmo(cur.get("weather_code")),
+        "humidity": cur.get("relative_humidity_2m"),
+        "wind_speed": cur.get("wind_speed_10m"),
     }

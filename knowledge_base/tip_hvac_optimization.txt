@@ -1,15 +1,17 @@
-HVAC OPTIMIZATION STRATEGIES
+HEAT PUMP AND HEATING OPTIMIZATION
 
-Heating and cooling typically account for 40-50% of a home's energy use, so small changes to HVAC behavior produce the largest savings.
+In a German home, heating is the largest energy use. An air-to-water heat pump moves heat from the outside air into the heating water. Its efficiency is the COP (coefficient of performance): a COP of 3.5 means 1 kWh of electricity delivers 3.5 kWh of heat. The COP falls when it is cold outside and when the heating water must be hot.
 
-Thermostat setpoints: Every degree you move the setpoint toward the outdoor temperature saves roughly 3% of HVAC energy. Recommended settings are 78F (25.5C) when cooling and 68F (20C) when heating while at home. When away or asleep, setback by 7-10F (4-5C) for up to 10% annual savings.
+Flow temperature: The most important setting is the flow temperature, the temperature of the water sent to the radiators or the floor heating. Every degree lower improves efficiency by about 2-3%. Floor heating often works with 30-35 degrees Celsius; radiators often need 40-50 degrees. Lower the heating curve step by step until the rooms are just warm enough.
 
-Time-of-use pricing: When electricity prices spike during the evening peak (typically 17:00-21:00), pre-cool the house in the early afternoon when rates are lower or solar generation is high, then raise the cooling setpoint by 2-4F (1-2C) during the peak. Thermal mass in walls and furniture keeps the home comfortable for 2-3 hours. In winter, pre-heat to 70F before the peak and drop to 66F during it.
+Hydraulic balancing: A hydraulic balancing makes sure every radiator gets the right amount of water, so the flow temperature can be lower. It is a one-off job for an installer.
 
-Solar pre-conditioning: On sunny days, run the air conditioner between 11:00 and 15:00 to use free solar production, lowering the setpoint by 2F below normal. This stores "cold" in the building and avoids grid imports later.
+Avoid the backup heater: Most heat pumps have an electric heating element as backup. It has a COP of 1, so its heat costs about three times as much as heat from the heat pump. Make sure it only runs in extreme cold or for the legionella cycle.
 
-Maintenance: Replace or clean filters every 1-3 months; a clogged filter raises consumption by 5-15%. Schedule an annual service. Seal and insulate ducts - leaky ducts waste 20-30% of conditioned air. Keep outdoor units free of leaves and shade them where possible.
+Using cheap and solar hours: A building stores heat in walls, floors and water. Before an expensive evening, raise the room setpoint by 1-2 degrees Celsius during cheap or sunny hours (pre-heating), then lower it by 1-2 degrees during the most expensive hours. The rooms stay comfortable for several hours. Heat the hot water tank at midday when solar power is available. Many heat pumps have an SG Ready input or an API that a home energy management system can use for this.
 
-Zoning and fans: Use zoned heating or cooling so unused rooms are not conditioned. Ceiling fans let you raise the cooling setpoint by about 4F at the cost of roughly 0.05 kWh per hour. Close blinds on sun-facing windows during the day in summer and open them in winter.
+Setpoints: About 20 degrees Celsius in living rooms is a good balance of comfort and cost. Night setback by 2-3 degrees saves energy in poorly insulated houses; in well-insulated houses with floor heating a constant temperature is often more efficient.
 
-Heat pumps: A modern heat pump delivers 3 units of heat per unit of electricity, which is 2-3 times more efficient than resistance heating. Avoid using emergency (resistance) heat except in extreme cold.
+Maintenance: Keep the outdoor unit free of leaves and snow, check the water pressure, and have the system serviced regularly.
+
+Summer: Many heat pumps can cool slightly through the floor heating. Closing the shutters on sun-facing windows during the day keeps rooms cool without electricity.

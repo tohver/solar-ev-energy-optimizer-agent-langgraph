@@ -1,7 +1,7 @@
 [project]
 name = "solar-ev-energy-optimizer"
 version = "0.2.0"
-description = "LangGraph agent that schedules EV charging, heating and appliances using weather forecasts, electricity prices, usage history and a RAG knowledge base."
+description = "LangGraph agent for a Munich household: schedules EV charging, heat pump and appliances using live weather, German day-ahead electricity prices, usage history and a RAG knowledge base."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -56,14 +56,16 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-# DTZ (naive datetimes) is enabled in phase 3, together with the move to time-zone-aware time.
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "S", "N"]
+# DTZ forbids naive datetimes: all time handling is time-zone aware (see timeutils.py).
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "S", "N", "DTZ"]
 ignore = ["E501"]  # line length is handled by the formatter; long strings are fine
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S311"]   # assert and non-crypto random are fine in tests
 "src/energy_advisor/data/seed.py" = ["S311"]  # synthetic sample data, not cryptography
-"src/energy_advisor/services/weather.py" = ["S311", "S324"]  # simulated forecast seed (md5 is not used for security)
+"src/energy_advisor/domain/climate.py" = ["S311"]  # synthetic weather, not cryptography
+"src/energy_advisor/clients/prices/synthetic.py" = ["S311"]
+"src/energy_advisor/services/weather.py" = ["S311"]  # synthetic fallback weather
 
 # ----------------------------------------------------------------------------- pytest
 [tool.pytest.ini_options]

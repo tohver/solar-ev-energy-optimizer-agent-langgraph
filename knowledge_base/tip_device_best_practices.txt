@@ -1,37 +1,27 @@
-Large devices like electric vehicles, washing machines and dishwashers often support delayed start or timer functions. Schedule these devices to run outside of peak electricity pricing hours or during periods of high solar generation. Consult your device manual for specific scheduling instructions.
+APPLIANCE BEST PRACTICES FOR A HOUSEHOLD WITH A DYNAMIC TARIFF
 
-Electric Vehicle Charging:
-- Charge during off-peak hours (typically 11 PM to 6 AM) to save money
-- Use Level 2 charging at home for faster charging when needed
-- Set charging to complete just before you need the vehicle
-- Consider charging during peak solar generation hours if you have solar panels
+Dishwashers, washing machines and dryers are flexible loads: the laundry does not care whether it is washed at 13:00 or at 02:00. With a dynamic electricity tariff the price changes every hour, so the start time of these appliances decides what a cycle costs. Most models have a delay-start timer; connected models can be started by a price or solar signal.
 
-Washing Machine Optimization:
-- Run full loads to maximize efficiency
-- Use cold water for most loads to save energy
-- Schedule loads during off-peak hours or when solar generation is high
-- Clean the machine regularly to maintain efficiency
+Dishwasher:
+- Run it only when it is full and use the eco programme. Eco takes longer but heats less water and uses about 0.7-1.0 kWh per cycle instead of 1.2-1.5 kWh.
+- Do not pre-rinse dishes under hot running water.
+- Schedule it for the cheapest hours of the day or for midday on sunny days when the PV system produces a surplus. Avoid the evening price peak (typically 17:00-20:00 in winter).
 
-Dishwasher Best Practices:
-- Only run when completely full
-- Use the energy-saving or eco mode when available
-- Schedule during off-peak hours or high solar generation periods
-- Skip the heated dry cycle and air dry instead
+Washing machine:
+- Wash full loads at 30-40 degrees Celsius; modern detergents work well at low temperatures. Most of the energy goes into heating water.
+- A 30 degree eco cycle needs about 0.4-0.6 kWh; a 60 degree cycle needs roughly twice as much.
+- Start it in solar hours (late morning to early afternoon) or in the cheapest grid hours.
 
-Water Heater Management:
-- Set temperature to 120°F for optimal efficiency
-- Insulate hot water pipes to reduce heat loss
-- Consider a timer to turn off during peak hours
-- Drain sediment annually to maintain efficiency
+Dryer:
+- A heat-pump dryer uses about half the energy of a condenser dryer (roughly 1-1.5 kWh per load).
+- Spin at high speed first and dry outside or on a rack whenever possible.
+- Run it directly after the washing machine while the sun is still shining.
 
-HVAC System Optimization:
-- Change air filters monthly for better airflow
-- Clean outdoor condenser coils annually
-- Use programmable thermostats to adjust temperatures automatically
-- Seal ductwork to prevent air leaks
+Fridge and freezer:
+- 7 degrees Celsius in the fridge and minus 18 degrees in the freezer are enough. Each degree colder costs about 6% more energy.
+- Defrost the freezer regularly and keep the door seals clean.
 
-Pool and Spa Equipment:
-- Run pool pumps during off-peak hours
-- Use pool covers to reduce heating needs
-- Consider variable-speed pumps for better efficiency
-- Maintain proper chemical balance to reduce filtration needs
+Cooking:
+- Use lids, the kettle for boiling water, and induction instead of old hot plates.
+
+Energy label: since 2021 the EU label uses classes A to G again. A class B appliance today is usually better than an old "A+++" appliance.

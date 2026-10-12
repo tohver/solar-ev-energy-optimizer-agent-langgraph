@@ -1,17 +1,20 @@
 SMART HOME AUTOMATION TIPS
 
-Automation turns good intentions into reliable savings. Typical smart-home setups reduce electricity bills by 10-25%.
+Automation turns good intentions into reliable savings: rules run every day, even when nobody thinks about prices.
 
-Schedules and routines: Create "away", "sleep" and "home" scenes. The away scene lowers the thermostat setback, turns off lights and puts media devices on standby power cutoff. The sleep scene reduces heating or cooling and switches off non-essential plugs.
+Home energy management system (HEMS): A HEMS reads the solar production, the household consumption and the dynamic electricity price, and controls the wallbox, the heat pump and the battery. Typical interfaces are SG Ready and EEBus for heat pumps and OCPP or vendor APIs for wallboxes. A smart meter (intelligent metering system) is required for a dynamic tariff and for the section 14a grid fee benefits.
 
-Smart plugs and standby power: Standby loads (TVs, consoles, chargers, printers) draw 5-10% of household electricity. Put them on smart plugs or power strips controlled by a schedule so they switch off overnight. A typical home saves 50-100 kWh per year per cluster of devices.
+Useful rules:
+- "Start the dishwasher when the solar surplus exceeds 1.5 kW, at the latest at 22:00."
+- "Charge the EV in the cheapest hours before the departure time, or with solar surplus."
+- "Raise the hot water target temperature when solar surplus is available."
+- "Lower the room setpoint by 1 degree during the three most expensive hours of the day."
+Combine the weather forecast with the published day-ahead prices to plan the next day after 13:00.
 
-Delayed starts: Schedule dishwashers, washing machines and dryers to start in off-peak hours (typically 22:00-06:00) or at midday when solar output is high. Most modern appliances support a delay-start timer; connected ones can be triggered by price or solar surplus signals.
+Smart plugs and standby: Put TVs, consoles, printers and chargers on smart plugs or switchable power strips that turn off at night. Smart plugs with metering also reveal hidden consumers such as an old freezer.
 
-Load shifting rules: Use rules such as "run the dishwasher when solar generation exceeds 1.5 kW" or "start EV charging when the price drops below the daily average". Combine weather forecasts and tariff data to decide start times for flexible loads.
+Heating automation: Smart radiator thermostats lower the temperature in empty rooms and when windows are open. Use schedules and presence detection to pre-heat before people come home.
 
-Sensors and presence detection: Occupancy sensors switch lights and adjust the thermostat automatically. Window and door sensors pause HVAC when a window is open. Use geofencing to resume comfort 30-60 minutes before the household returns.
+Monitoring: Review the weekly energy report: daily consumption, self-consumption rate, the most expensive hours in which you used electricity, and unusual night consumption. A sudden rise often points to a faulty device or a forgotten setting.
 
-Monitoring: Install a whole-home energy monitor or smart meter integration. Review weekly reports to catch always-on loads and unusual spikes (for example a failing refrigerator or a pool pump running continuously).
-
-Lighting: Replace bulbs with LEDs (75% less energy) and use dimming and motion-based control in hallways, garages and outdoors.
+Lighting: Motion sensors in hallways, the basement and outside switch LED lights only when needed.

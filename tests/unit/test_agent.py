@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage
 from energy_advisor.agent.graph import EnergyAdvisor, build_system_context
 from energy_advisor.agent.tools import build_tools
 from energy_advisor.agent.trace import final_answer, tool_calls, tool_outputs, tools_with_errors
-from tests.helpers import NOW, FakeToolModel
+from tests.helpers import BERLIN, NOW, FakeToolModel
 
 EXPECTED_TOOLS = {
     "get_weather_forecast",
@@ -24,7 +24,7 @@ EXPECTED_TOOLS = {
 
 def _advisor(services, *responses, **kwargs):
     llm = FakeToolModel(messages=iter(responses))
-    advisor = EnergyAdvisor(llm, build_tools(services), now=lambda: NOW, **kwargs)
+    advisor = EnergyAdvisor(llm, build_tools(services), lambda: NOW, **kwargs)
     return advisor, llm
 
 
@@ -49,11 +49,12 @@ def test_graph_has_agent_and_tools_nodes(services):
     assert {"agent", "tools"} <= set(advisor.graph.get_graph().nodes)
 
 
-def test_system_context_contains_date_calendar_and_location():
-    text = build_system_context(datetime(2026, 10, 12, 9, 5), "Location: Munich")
-    assert "Current date and time: Monday, 2026-10-12 09:05." in text
-    assert "Tuesday = 2026-10-13" in text
-    assert "Monday = 2026-10-19" in text  # 8 days of calendar
+def test_system_context_contains_local_date_calendar_and_location():
+    text = build_system_context(datetime(2026, 10, 12, 9, 5, tzinfo=BERLIN), "Location: Munich")
+    assert "Current date and time: Monday, 2026-10-12 09:05 (CEST)." in text
+    assert "Monday = 2026-10-12 (today)" in text
+    assert "Tuesday = 2026-10-13 (tomorrow)" in text
+    assert "Monday = 2026-10-19" in text  # 8 days of calendar: next Monday is distinguishable
     assert text.endswith("Location: Munich")
 
 

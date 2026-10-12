@@ -79,7 +79,7 @@ come from environment variables or `.env`. Nested values use a double underscore
 | `OPENAI_API_KEY` | – | Required for `ask`, `eval`, `build-index`, `rag-benchmark` |
 | `OPENAI_BASE_URL` | OpenAI | Optional, for OpenAI-compatible proxies |
 | `LLM__MODEL` / `LLM__JUDGE_MODEL` | `gpt-4o-mini` | Agent model / evaluation judge |
-| `LOCATION__NAME` | `San Francisco, CA` | Default location given to the agent |
+| `LOCATION__NAME`, `LOCATION__LATITUDE`, ... | Munich | Household location and time zone |
 | `HOUSEHOLD__CO2_KG_PER_KWH` | `0.4` | Grid carbon intensity used for CO₂ estimates |
 | `PATHS__DB`, `PATHS__VECTORSTORE`, ... | `data/...` | File locations |
 

@@ -2,7 +2,6 @@
 
 import logging
 from collections.abc import Callable, Sequence
-from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -11,6 +10,7 @@ from energy_advisor.agent.trace import final_answer, tool_calls, tool_outputs, t
 from energy_advisor.evaluation.cases import EvalCase
 from energy_advisor.evaluation.judge import LLMJudge, ResponseEval
 from energy_advisor.evaluation.metrics import ToolUsageEval, evaluate_tool_usage
+from energy_advisor.timeutils import Clock
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ def run_evaluation(
     advisor: EnergyAdvisor,
     judge: LLMJudge,
     cases: Sequence[EvalCase],
+    now: Clock,
     context: str | None = None,
-    now: Callable[[], datetime] = datetime.now,
     on_result: Callable[[CaseResult], None] | None = None,
 ) -> list[CaseResult]:
     results = []

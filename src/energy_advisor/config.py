@@ -2,39 +2,84 @@
 
 Values come from (highest priority first): constructor arguments, environment variables,
 the ``.env`` file in the project root, and the defaults below. Nested settings are overridden
-with a double underscore, e.g. ``LLM__MODEL=gpt-4o`` or ``PATHS__DB=/tmp/energy.db``.
+with a double underscore, e.g. ``LLM__MODEL=gpt-4o`` or ``TARIFF__SURCHARGES_EUR_PER_KWH=0.21``.
 """
 
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class LocationSettings(BaseModel):
-    """Where the household is. Used as default context for the agent and for weather queries."""
+    """Where the household is. Weather, prices and "today" are all resolved for this place."""
 
-    name: str = "San Francisco, CA"
+    name: str = "Munich, Germany"
+    latitude: float = 48.1374
+    longitude: float = 11.5755
+    timezone: str = "Europe/Berlin"
+    bidding_zone: str = Field(default="DE-LU", description="Electricity market area of the day-ahead auction")
+    aliases: list[str] = Field(default_factory=lambda: ["munich", "münchen", "muenchen"])
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"Unknown time zone: {value}") from exc
+        return value
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone)
+
+    def matches(self, place: str | None) -> bool:
+        """True if ``place`` refers to this location (or is empty)."""
+        if not place or not place.strip():
+            return True
+        text = place.lower()
+        return self.name.split(",")[0].lower() in text or any(alias in text for alias in self.aliases)
 
 
-class PricingSettings(BaseModel):
-    """Mock time-of-use tariff (replaced by real day-ahead prices in phase 4)."""
+class TariffSettings(BaseModel):
+    """Converts the wholesale day-ahead price into what a household with a dynamic tariff pays.
 
-    currency: str = "USD"
-    base_price_per_kwh: float = 0.12
-    off_peak_multiplier: float = 0.7
-    mid_peak_multiplier: float = 1.3
-    peak_multiplier: float = 2.2
-    peak_demand_charge: float = 0.05
+    retail = (spot / 1000 + surcharges) * (1 + VAT). The surcharges (grid fees, levies, electricity
+    tax, concession fee, supplier margin) vary by city and supplier; the default is a typical value.
+    """
+
+    currency: str = "EUR"
+    surcharges_eur_per_kwh: float = Field(default=0.19, description="Net, without VAT")
+    vat_rate: float = 0.19
+    feed_in_tariff_eur_per_kwh: float = Field(default=0.078, description="Paid per exported solar kWh (EEG)")
+    fixed_price_eur_per_kwh: float = Field(
+        default=0.35, description="A typical fixed-price tariff, for comparison"
+    )
 
 
 class HouseholdSettings(BaseModel):
-    """Assumptions about the household used in calculations."""
+    """The demo household: used to generate its history and in calculations."""
 
-    co2_kg_per_kwh: float = Field(default=0.4, description="Grid carbon intensity (kg CO2 per kWh)")
+    pv_peak_kw: float = Field(default=8.0, description="Installed PV size (kWp)")
+    pv_performance_ratio: float = Field(
+        default=0.8, description="Share of the theoretical yield after losses"
+    )
+    wallbox_kw: float = 11.0
+    ev_consumption_kwh_per_100km: float = 17.0
+    ev_daily_km: float = 35.0
+    heat_loss_kw_per_k: float = Field(
+        default=0.15, description="Building heat loss per kelvin of temperature difference"
+    )
+    heating_limit_c: float = Field(
+        default=15.0, description="No space heating above this outdoor temperature"
+    )
+    base_load_kw: float = Field(default=0.3, description="Average always-on household load")
+    co2_kg_per_kwh: float = Field(default=0.36, description="German grid mix, approx. (UBA); configurable")
 
 
 class LLMSettings(BaseModel):
@@ -75,7 +120,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     location: LocationSettings = LocationSettings()
-    pricing: PricingSettings = PricingSettings()
+    tariff: TariffSettings = TariffSettings()
     household: HouseholdSettings = HouseholdSettings()
     llm: LLMSettings = LLMSettings()
     rag: RAGSettings = RAGSettings()

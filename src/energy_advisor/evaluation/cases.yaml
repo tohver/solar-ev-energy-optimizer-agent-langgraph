@@ -3,95 +3,91 @@
 
 - id: ev_charging_1
   question: When should I charge my electric car tomorrow to minimize cost and maximize solar power?
-  expected_tools:
-  - get_weather_forecast
-  - get_electricity_prices
-  expected_response: The response should contain time recommendation, cost analysis and solar consideration
+  expected_tools: [get_weather_forecast, get_electricity_prices]
+  expected_response: >-
+    Concrete charging hours for tomorrow (local time) that combine the solar forecast and the hourly prices,
+    the price in EUR/kWh of the chosen hours, an estimated cost or saving in EUR, and a note if prices are an estimate.
 - id: ev_charging_2
-  question: I need my EV fully charged by 7am on Monday. What is the cheapest time window to charge it and how much
-    will it cost?
-  expected_tools:
-  - get_electricity_prices
-  - query_energy_usage
-  expected_response: The response should recommend an off-peak charging window ending before 7am, estimate the cost
-    in USD using the retrieved rates and the typical EV consumption from the usage history
-- id: thermostat_1
-  question: What temperature should I set my thermostat on Wednesday afternoon if electricity prices spike?
-  expected_tools:
-  - get_electricity_prices
-  - get_weather_forecast
-  - search_energy_tips
-  expected_response: The response should give a specific temperature setpoint, mention pre-cooling or setback during
-    peak hours, and cite HVAC tips from the knowledge base
-- id: thermostat_2
-  question: It is going to be warm this week. How should I run my air conditioning to keep the house comfortable
-    but keep the bill low?
-  expected_tools:
-  - get_weather_forecast
-  - get_electricity_prices
-  - search_energy_tips
-  expected_response: The response should propose a schedule for the air conditioner using forecast temperatures
-    and time-of-use rates, with specific setpoints and tips for reducing cooling cost
+  question: I need my EV charged with 30 kWh by 7:00 next Monday morning. What is the cheapest window and what will it cost?
+  expected_tools: [get_electricity_prices]
+  expected_response: >-
+    A charging window that ends before 07:00 on the correct date (next Monday, not a past day), based on the
+    cheapest hours of the dynamic tariff, with the charging duration at 11 kW and the cost in EUR.
+- id: heat_pump_1
+  question: Electricity is expensive tomorrow evening. How should I run my heat pump to stay warm but pay less?
+  expected_tools: [get_electricity_prices, get_weather_forecast, search_energy_tips]
+  expected_response: >-
+    Pre-heating during cheap or sunny hours before the expensive evening hours, a specific temperature setpoint in
+    degrees Celsius (e.g. 1-2 degrees higher before the peak), the expensive hours named, and heat pump tips cited
+    from the knowledge base.
+- id: heat_pump_2
+  question: It is getting colder this week. How can I keep the heat pump bill low without being cold?
+  expected_tools: [get_weather_forecast, search_energy_tips]
+  expected_response: >-
+    Advice based on the forecast temperatures: setpoints in degrees Celsius, lower flow temperature, avoiding the
+    electric backup heater, using cheap/sunny hours, with tips cited from the knowledge base.
 - id: appliance_1
-  question: How much can I save by running my dishwasher during off-peak hours?
-  expected_tools:
-  - get_electricity_prices
-  - calculate_energy_savings
-  expected_response: The response should compare peak and off-peak rates, state the off-peak hours and calculate
-    savings per cycle and per year in USD
+  question: How much can I save by running my dishwasher in the cheapest hours instead of right after dinner?
+  expected_tools: [get_electricity_prices, calculate_energy_savings]
+  expected_response: >-
+    Compares the evening price with the cheapest hours (EUR/kWh), names those hours, and calculates the saving per
+    cycle and per year in EUR with calculate_energy_savings.
 - id: appliance_2
   question: When is the best time this week to run my washing machine and dryer?
-  expected_tools:
-  - get_electricity_prices
-  - get_weather_forecast
-  expected_response: The response should recommend specific hours for the washer and dryer, based on low prices
-    and/or high solar production, and explain the reasoning
+  expected_tools: [get_electricity_prices, get_weather_forecast]
+  expected_response: >-
+    Specific days and hours for washer and dryer based on solar forecast and/or low prices, with reasoning.
 - id: solar_1
-  question: How can I use more of my own solar power instead of exporting it to the grid? Look at my last week of
-    solar generation.
-  expected_tools:
-  - query_solar_generation
-  - search_energy_tips
-  expected_response: The response should analyze the historical solar generation (peak hours, total kWh), recommend
-    shifting flexible loads into the solar window and cite self-consumption tips
+  question: How can I use more of my own solar power instead of exporting it? Look at my last week of solar generation.
+  expected_tools: [query_solar_generation, search_energy_tips]
+  expected_response: >-
+    Uses the energy balance (self-consumption rate, exported kWh) and the hourly solar profile of the last week,
+    recommends shifting flexible loads (EV, appliances, heat pump/hot water) into solar hours, explains that
+    exported power earns only the feed-in tariff, and cites self-consumption tips.
 - id: solar_2
-  question: What's the best time to run my pool pump this week based on the weather forecast?
-  expected_tools:
-  - get_weather_forecast
-  - get_electricity_prices
-  expected_response: The response should recommend specific times per day for the pool pump, combining the forecast
-    (sunny hours) and electricity prices while avoiding peak hours
+  question: Which days in the next three days are best for charging the car from solar?
+  expected_tools: [get_weather_forecast]
+  expected_response: >-
+    Ranks the next three days by forecast sky condition / irradiance, names the best day(s) and midday hours, and
+    estimates how much solar energy is available.
 - id: history_1
-  question: Suggest three ways I can reduce energy use based on my usage history.
-  expected_tools:
-  - query_energy_usage
-  - search_energy_tips
-  expected_response: The response should give exactly three concrete suggestions grounded in the customer's historical
-    usage by device type and cite knowledge base tips
+  question: Suggest three ways I can reduce my electricity use based on my usage history.
+  expected_tools: [query_energy_usage, search_energy_tips]
+  expected_response: >-
+    Exactly three concrete suggestions grounded in the historical consumption by device type (EV, heat pump,
+    appliances, base load) and cites knowledge-base tips.
 - id: history_2
-  question: Which of my devices used the most energy in the last 7 days and what does it cost me?
-  expected_tools:
-  - query_energy_usage
-  expected_response: The response should report consumption in kWh and cost in USD per device type for the last
-    7 days and identify the largest consumer
+  question: Which of my devices used the most electricity in the last 7 days and what did it cost me?
+  expected_tools: [query_energy_usage]
+  expected_response: >-
+    Consumption in kWh and cost in EUR per device type for the last 7 days and identifies the largest consumer.
 - id: savings_1
-  question: If I move my EV charging (about 10 kWh per day) from peak hours to off-peak hours, how much money and
-    CO2 would I save per year?
-  expected_tools:
-  - get_electricity_prices
-  - calculate_energy_savings
-  expected_response: The response should use real peak and off-peak rates, show the daily and annual savings in
-    USD and mention the CO2 impact
+  question: If I move 10 kWh of EV charging per day from the most expensive evening hours to the cheapest hours, how much money and CO2 would I save per year?
+  expected_tools: [get_electricity_prices, calculate_energy_savings]
+  expected_response: >-
+    Uses actual expensive and cheap rates in EUR/kWh, shows the daily and annual saving in EUR, and explains that
+    shifting load saves money but not CO2 in this model.
 - id: storage_1
   question: I am thinking about adding a home battery. How should I charge and discharge it to save the most money?
-  expected_tools:
-  - get_electricity_prices
-  - search_energy_tips
-  expected_response: The response should recommend charging from solar or off-peak and discharging during peak hours,
-    based on the rate spread, citing storage tips from the knowledge base
+  expected_tools: [get_electricity_prices, search_energy_tips]
+  expected_response: >-
+    Charge from solar surplus (and very cheap hours), discharge in the most expensive hours, based on the price
+    spread of the dynamic tariff and the low feed-in tariff, citing storage tips.
 - id: seasonal_1
-  question: Give me some seasonal energy-saving tips for the upcoming winter.
-  expected_tools:
-  - search_energy_tips
-  expected_response: The response should provide winter-specific tips (thermostat setpoints, solar changes, sealing
-    drafts) taken from the knowledge base
+  question: Give me some energy-saving tips for the coming winter in Munich.
+  expected_tools: [search_energy_tips]
+  expected_response: >-
+    Winter-specific tips (heating setpoints in Celsius, heat pump operation, lower solar yield, ventilation) taken
+    from the knowledge base.
+- id: negative_prices_1
+  question: What should I do when electricity prices are negative?
+  expected_tools: [search_energy_tips]
+  expected_response: >-
+    Explains that negative prices mean being paid to consume, recommends moving flexible loads (EV, hot water,
+    appliances, battery) into those hours, and notes that a solar system may curtail or not earn feed-in then.
+- id: tomorrow_prices_1
+  question: What will electricity cost tomorrow at 19:00 and is that a good time to run the dryer?
+  expected_tools: [get_electricity_prices]
+  expected_response: >-
+    Gives the price for tomorrow 19:00 in EUR/kWh from the tool, compares it with the cheapest hours, recommends a
+    better time if there is one, and says clearly if the prices are only an estimate.

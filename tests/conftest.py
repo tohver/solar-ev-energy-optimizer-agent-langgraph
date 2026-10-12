@@ -1,4 +1,5 @@
-"""Shared fixtures. Every test gets its own temporary database and settings; nothing reads the real .env."""
+"""Shared fixtures. Every test gets its own temporary database and settings; nothing reads the real .env
+and nothing touches the network (HTTP calls fail, so services use their offline fallbacks)."""
 
 import os
 from collections.abc import Iterator
@@ -10,11 +11,11 @@ from langchain_core.embeddings import DeterministicFakeEmbedding
 
 from energy_advisor.config import PROJECT_ROOT, PathSettings, Settings, get_settings
 from energy_advisor.data.repository import EnergyRepository
-from energy_advisor.data.seed import seed_database
+from energy_advisor.data.seed import build_history, seed_database
 from energy_advisor.rag.ingest import build_index
 from energy_advisor.rag.knowledge_base import KnowledgeBase
 from energy_advisor.services.container import Services, build_services
-from tests.helpers import LAST_SEEDED_DAY, NOW
+from tests.helpers import LAST_SEEDED_DAY, fixed_clock
 
 SETTINGS_ENV_PREFIXES = (
     "OPENAI_",
@@ -22,10 +23,12 @@ SETTINGS_ENV_PREFIXES = (
     "PATHS__",
     "RAG__",
     "LOCATION__",
-    "PRICING__",
+    "TARIFF__",
+    "PRICES__",
     "HOUSEHOLD__",
     "LOG_LEVEL",
 )
+SEEDED_DAYS = 14
 
 
 @pytest.fixture(autouse=True)
@@ -54,14 +57,6 @@ def settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def repo(settings: Settings) -> EnergyRepository:
-    """30 days of seeded sample data ending on LAST_SEEDED_DAY."""
-    repository = EnergyRepository(settings.paths.db)
-    seed_database(repository, days=30, seed=42, end_date=LAST_SEEDED_DAY)
-    return repository
-
-
-@pytest.fixture
 def offline_http() -> httpx.Client:
     """HTTP client whose every request fails, so services fall back to their offline behaviour."""
 
@@ -72,8 +67,20 @@ def offline_http() -> httpx.Client:
 
 
 @pytest.fixture
-def services(settings: Settings, repo: EnergyRepository, offline_http: httpx.Client) -> Services:
-    return build_services(settings, http=offline_http, now=lambda: NOW)
+def services(settings: Settings, offline_http: httpx.Client) -> Services:
+    """Offline services: synthetic weather and synthetic prices, fixed clock."""
+    return build_services(settings, http=offline_http, clock=fixed_clock)
+
+
+@pytest.fixture
+def repo(services: Services) -> EnergyRepository:
+    """SEEDED_DAYS days of history ending on LAST_SEEDED_DAY (deterministic: synthetic inputs, seed 42)."""
+    s = services.settings
+    history = build_history(
+        services.weather, services.prices, s.household, s.location.tz, SEEDED_DAYS, LAST_SEEDED_DAY, seed=42
+    )
+    seed_database(services.repository, history)
+    return services.repository
 
 
 @pytest.fixture

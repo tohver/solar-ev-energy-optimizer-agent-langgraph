@@ -1,17 +1,17 @@
-RENEWABLE ENERGY INTEGRATION AND SOLAR SELF-CONSUMPTION
+SOLAR SELF-CONSUMPTION AND RENEWABLE INTEGRATION
 
-Using solar energy in the home is worth much more than exporting it. Exported power usually earns 3-8 cents per kWh, whereas imported power costs 12-30 cents per kWh, so every kWh self-consumed saves the retail rate.
+Self-consumption beats export: Solar power that is exported to the grid earns the feed-in tariff of the German Renewable Energy Sources Act (EEG). For new small systems with partial feed-in it is around 8 cents per kWh and falls slightly every six months. Power bought from the grid costs about 30-40 cents per kWh. Every solar kWh used at home therefore saves far more than it earns when exported.
 
-Maximize self-consumption: Shift flexible loads into the solar window, normally 10:00-16:00. Good candidates are EV charging, dishwashers, washing machines, water heaters, pool pumps and pre-cooling. Aim for a self-consumption rate above 70%.
+Self-consumption rate and autarky: The self-consumption rate is the share of the solar power you use yourself; autarky (self-sufficiency) is the share of your consumption covered by solar. A household without battery and flexible loads typically uses 25-35% of its solar power. Shifting the EV, the dishwasher, the washing machine and hot water heating into solar hours can raise this to 50% or more.
 
-Match loads to forecasts: Use the weather forecast to estimate production. A clear day produces about 4-5 kWh per kW of installed panels; partly cloudy days produce about 60% of that, cloudy days about 30% and rainy days about 10%. On low-production days, move heavy loads to off-peak grid hours instead.
+Yield in Munich: A south-facing PV system in southern Germany produces about 1,000-1,100 kWh per kWp per year. An 8 kWp system therefore yields around 8,000-9,000 kWh per year, most of it from April to September. On a clear summer day 8 kWp can produce 45-55 kWh, on a dull December day only 2-5 kWh.
 
-EV charging with solar: Charging an EV at 7 kW for 3-4 hours at midday can absorb a 5 kW solar array's output completely. If solar is weak, charge between 23:00 and 06:00 at off-peak rates. Many chargers support solar-only or surplus charging modes.
+Matching loads to the forecast: Check the solar forecast each morning. On sunny days run flexible loads between about 10:00 and 15:00; on cloudy days use the cheapest grid hours instead.
 
-Panel performance: Panels lose 0.3-0.5% of output per degree Celsius above 25C. Keep them clean (dust and bird droppings cut output by 5-10%) and trim shading from trees. West-facing panels shift production later toward the evening peak and can be worth more under time-of-use pricing.
+Negative prices and the solar peak law: For PV systems commissioned since February 2025 there is no feed-in payment in hours with negative exchange prices. That is one more reason to use solar power at home at midday.
 
-Net metering and export limits: Understand your tariff. Under net metering, exported kWh offset imports and timing matters less; under net billing or low export rates, self-consumption is far more valuable. Check for export caps and inverter clipping.
+Plug-in solar: Balcony power plants with up to 800 W inverter power can be registered easily and reduce the base load during the day.
 
-Environmental impact: Each kWh of solar replaces about 0.4 kg of CO2 from the average grid. A 6 kW system producing 9,000 kWh per year avoids roughly 3.6 tonnes of CO2 annually.
+Environmental impact: Each kWh of solar power replaces grid electricity with an average emission factor of roughly 0.36 kg CO2 per kWh in Germany. An 8 kWp system producing 8,500 kWh per year avoids around 3 tonnes of CO2 annually.
 
-Other renewables: Where available, green tariffs and community solar subscriptions add renewable supply for homes without rooftop systems.
+Keeping the system efficient: Panels lose about 0.4% of output per degree above 25 degrees Celsius; shading and dirt reduce yield. Monitor the daily production and compare it with the forecast to spot faults.
