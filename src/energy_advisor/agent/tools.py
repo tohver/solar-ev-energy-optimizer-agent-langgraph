@@ -17,6 +17,7 @@ from energy_advisor.data.aggregation import (
     summarize_recent,
     summarize_usage,
 )
+from energy_advisor.optimization.scheduling import ScheduleError
 from energy_advisor.services.container import Services
 from energy_advisor.services.savings import calculate_savings
 from energy_advisor.timeutils import InvalidDateError, day_bounds_utc, parse_day
@@ -144,6 +145,56 @@ def build_tools(services: Services) -> list[BaseTool]:
             return {"error": f"Failed to get recent energy summary: {exc}"}
 
     @tool
+    def find_cheapest_window(
+        energy_kwh: float,
+        power_kw: float,
+        earliest_start: str | None = None,
+        deadline: str | None = None,
+        interruptible: bool = True,
+        use_solar: bool = True,
+        device: str = "device",
+    ) -> dict[str, Any]:
+        """Compute the cheapest time to run a flexible load, using hourly prices AND the solar forecast.
+
+        ALWAYS use this for "when should I charge/run ..." questions instead of working out hours yourself.
+        It returns the exact schedule, its cost in EUR, the energy from solar, and the saving compared
+        with starting immediately at the earliest start.
+
+        Args:
+            energy_kwh: Energy the device needs, e.g. 30 for EV charging, 1.0 for a dishwasher cycle.
+            power_kw: Power while running: EV wallbox 11; dishwasher about 0.5; washing machine about 0.4;
+                dryer about 0.6; heat pump boost about 2.
+            earliest_start: Local time "YYYY-MM-DDTHH:MM" when the device becomes available (default: now).
+            deadline: Local time "YYYY-MM-DDTHH:MM" by which it must be finished (default: 24 h after the start).
+            interruptible: True if it may pause (EV charging); False if it must run in one go (appliances).
+            use_solar: Consider own solar surplus (valued at the feed-in tariff).
+            device: Name for the output, e.g. "EV".
+        """
+        try:
+            return services.optimizer.cheapest_window(
+                energy_kwh, power_kw, earliest_start, deadline, interruptible, use_solar, device
+            )
+        except (InvalidDateError, ScheduleError) as exc:
+            return {"error": str(exc)}
+        except Exception as exc:
+            logger.exception("find_cheapest_window failed")
+            return {"error": f"Failed to compute a schedule: {exc}"}
+
+    @tool
+    def estimate_pv_generation(days: int = 1) -> dict[str, Any]:
+        """Expected solar (PV) yield of the household for today and the next days, per hour, with the hours of
+        highest surplus after the household's own base load.
+
+        Args:
+            days: Number of days starting today (1-3).
+        """
+        try:
+            return services.optimizer.pv_forecast(days)
+        except Exception as exc:
+            logger.exception("estimate_pv_generation failed")
+            return {"error": f"Failed to estimate PV generation: {exc}"}
+
+    @tool
     def search_energy_tips(query: str, max_results: int = 5) -> dict[str, Any]:
         """Search the energy-saving knowledge base (RAG). Returns ranked tips with their source file to cite.
 
@@ -201,6 +252,8 @@ def build_tools(services: Services) -> list[BaseTool]:
         query_energy_usage,
         query_solar_generation,
         get_recent_energy_summary,
+        find_cheapest_window,
+        estimate_pv_generation,
         search_energy_tips,
         calculate_energy_savings,
     ]

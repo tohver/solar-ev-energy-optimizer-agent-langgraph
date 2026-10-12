@@ -765,12 +765,25 @@ Implementation notes:
 - Energy-Charts' `end` parameter is inclusive (one slot too many without `end - 1s`).
 - The household history (`seed-db`) is now costed with the real hourly prices of each past hour.
 
-### Phase 5: Optimization tools
-- [ ] `estimate_pv_generation`, `find_cheapest_window` (unit-tested, including negative prices and deadlines
+### Phase 5: Optimization tools ✅
+- [x] `estimate_pv_generation`, `find_cheapest_window` (unit-tested, including negative prices and deadlines
       that cross midnight)
-- [ ] Prompt update: "use `find_cheapest_window` for any scheduling question; do not compute schedules
+- [x] Prompt update: "use `find_cheapest_window` for any scheduling question; do not compute schedules
       yourself"
 - **Done when:** the evaluation accuracy is measurably higher than the Phase 3 baseline.
+
+Implementation notes:
+- `find_cheapest_window` has two modes: contiguous (appliances: every start time is evaluated) and
+  interruptible (EV: greedy fill of the cheapest capacity, optimal for linear costs). Solar surplus
+  (forecast PV minus the household base load) is valued at the feed-in tariff; with negative grid prices
+  below the feed-in tariff the grid is preferred.
+- An interruptible load modulates its power: a partly used slot means lower average power for the whole
+  slot (a wallbox following the solar surplus), not a one-minute burst at 11 kW.
+- The phase-3 failure ("charge 11:00-14:00 for a 07:00 deadline") is fixed: the schedule now comes from the
+  tool and always ends before the deadline. A new prompt rule assumes a commuter's car is at home from the
+  evening, because the optimizer otherwise (correctly, but unrealistically) spread charging over sunny days.
+- `search_energy_tips` is now part of every case's expected tools, because the system prompt requires it for
+  every answer; otherwise the tool-appropriateness metric punished following the prompt.
 
 ### Phase 6: Quality hardening
 - [ ] Agent-graph tests with a fake LLM; coverage report in CI

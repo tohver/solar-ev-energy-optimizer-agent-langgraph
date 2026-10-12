@@ -14,6 +14,7 @@ from energy_advisor.clients.prices.synthetic import SyntheticPriceProvider
 from energy_advisor.config import Settings
 from energy_advisor.data.repository import EnergyRepository
 from energy_advisor.llm import make_chat_model, make_embeddings
+from energy_advisor.optimization.service import OptimizerService
 from energy_advisor.rag.knowledge_base import KnowledgeBase
 from energy_advisor.rag.rerank import LLMReranker
 from energy_advisor.services.prices import PriceService
@@ -28,6 +29,7 @@ class Services:
     weather: WeatherService
     prices: PriceService
     knowledge_base: KnowledgeBase
+    optimizer: OptimizerService
     clock: Clock
 
 
@@ -57,16 +59,19 @@ def build_services(
 ) -> Services:
     """Nothing here touches the network or needs an API key; LLM clients are created on first use."""
     clock = clock or make_clock(settings.location.tz)
+    weather = WeatherService(OpenMeteoClient(http), settings.location, clock)
+    prices = PriceService(
+        price_providers or build_price_providers(settings, http, clock),
+        settings.tariff,
+        settings.location,
+        clock,
+    )
     return Services(
         settings=settings,
         repository=EnergyRepository(settings.paths.db),
-        weather=WeatherService(OpenMeteoClient(http), settings.location, clock),
-        prices=PriceService(
-            price_providers or build_price_providers(settings, http, clock),
-            settings.tariff,
-            settings.location,
-            clock,
-        ),
+        weather=weather,
+        prices=prices,
+        optimizer=OptimizerService(settings, prices, weather, clock),
         knowledge_base=KnowledgeBase(
             persist_dir=settings.paths.vectorstore,
             rag=settings.rag,

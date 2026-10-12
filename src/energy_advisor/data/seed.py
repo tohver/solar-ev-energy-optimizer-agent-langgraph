@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 from energy_advisor.config import HouseholdSettings
 from energy_advisor.data.models import EnergyUsage, SolarGeneration
 from energy_advisor.data.repository import EnergyRepository
+from energy_advisor.domain.household import base_load_kw
 from energy_advisor.domain.solar import pv_energy_kwh
 from energy_advisor.domain.weather import HourlyWeather
 from energy_advisor.services.prices import PriceService
@@ -33,11 +34,6 @@ from energy_advisor.timeutils import day_bounds_utc
 
 MAX_DAYS = 90  # Open-Meteo's forecast API serves about 3 months of past weather
 
-# Relative base load by local hour (mean ~1.0): low at night, peaks in the morning and evening.
-BASE_LOAD_PROFILE = (
-    0.6, 0.55, 0.5, 0.5, 0.5, 0.6, 0.9, 1.2, 1.1, 0.95, 0.9, 1.0,
-    1.15, 1.0, 0.9, 0.9, 1.0, 1.3, 1.6, 1.7, 1.5, 1.3, 1.0, 0.8,
-)  # fmt: skip
 HOT_WATER_HOURS = {6: 0.8, 7: 0.6, 19: 0.6, 20: 0.5}  # kWh of heat for showers etc.
 
 
@@ -106,7 +102,7 @@ def generate_household(
         for h in hours:
             local_hour = h.time.astimezone(tz).hour
             # base load
-            base = household.base_load_kw * BASE_LOAD_PROFILE[local_hour] * rng.uniform(0.85, 1.15)
+            base = base_load_kw(local_hour, household.base_load_kw) * rng.uniform(0.85, 1.15)
             loads[(h.time, "base_load", BASE_LOAD_NAME)] += base
             # heat pump: space heating + hot water
             heat = household.heat_loss_kw_per_k * max(0.0, household.heating_limit_c - h.temperature_c)

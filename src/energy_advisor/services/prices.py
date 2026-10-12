@@ -80,7 +80,7 @@ class PriceService:
                     raise PriceUnavailableError("incomplete data")
                 return sorted(prices, key=lambda p: p.start), provider, notes
             except Exception as exc:
-                logger.info("Price provider %s failed: %s", provider.name, exc)
+                logger.debug("Price provider %s failed: %s", provider.name, exc)
                 notes.append(f"{provider.name}: {type(exc).__name__}: {exc}")
         raise PriceUnavailableError("No price provider could deliver prices. " + " | ".join(notes))
 
@@ -96,7 +96,7 @@ class PriceService:
             try:
                 return self._single_curve(start, end, real)
             except PriceUnavailableError:
-                logger.info("Range not fully published; resolving day by day")
+                logger.debug("Range not fully published; resolving day by day")
         parts = []
         day = days[0]
         while day <= days[-1]:
@@ -152,7 +152,7 @@ def merge_curves(parts: Sequence[PriceCurve]) -> PriceCurve:
 
 def estimate_note(source: str) -> str:
     return (
-        f"These prices are an ESTIMATE ({source}), not published market prices. Day-ahead prices for "
+        f"ESTIMATED prices ({source}), not published market prices. Day-ahead prices for "
         "tomorrow are published around 13:00 CET; tell the user that the schedule is based on an estimate."
     )
 

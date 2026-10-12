@@ -17,6 +17,8 @@ EXPECTED_TOOLS = {
     "query_energy_usage",
     "query_solar_generation",
     "get_recent_energy_summary",
+    "find_cheapest_window",
+    "estimate_pv_generation",
     "search_energy_tips",
     "calculate_energy_savings",
 }
@@ -32,7 +34,7 @@ def _tool_call(name, args, call_id="call_1"):
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": call_id}])
 
 
-def test_toolkit_has_all_seven_tools(services):
+def test_toolkit_has_all_nine_tools(services):
     assert {t.name for t in build_tools(services)} == EXPECTED_TOOLS
 
 
