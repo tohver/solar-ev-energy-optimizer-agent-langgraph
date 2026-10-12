@@ -144,8 +144,28 @@ with tab_window:
                 if start <= hour < end
             ]
         ).set_index("time")
+        cheapest = hours["price (EUR/kWh)"].idxmin()
+        sunniest = hours["solar surplus (kWh)"].idxmax()
+
+        st.subheader("Electricity price per hour")
+        st.line_chart(hours[["price (EUR/kWh)"]], x_label="Local time", y_label="EUR per kWh")
         st.caption(
-            f"Prices: {curve.source}{' (ESTIMATE)' if curve.is_estimate else ''} · Solar: {solar_source}"
+            "What you pay for one kWh from the grid in each hour (dynamic tariff, incl. fees and VAT). "
+            f"Cheapest hour: {cheapest:%a %H:%M} at {hours['price (EUR/kWh)'].min():.3f} EUR/kWh. "
+            f"Source: {curve.source}{' - ESTIMATE, prices not published yet' if curve.is_estimate else ''}."
         )
-        st.line_chart(hours[["price (EUR/kWh)"]])
-        st.bar_chart(hours[["solar surplus (kWh)"]])
+
+        st.subheader("Solar surplus per hour")
+        st.bar_chart(
+            hours[["solar surplus (kWh)"]], x_label="Local time", y_label="kWh in that hour", color="#eda100"
+        )
+        if hours["solar surplus (kWh)"].max() > 0:
+            best = f"Most surplus: {sunniest:%a %H:%M} with {hours['solar surplus (kWh)'].max():.1f} kWh. "
+        else:
+            best = "No solar surplus expected in this window. "
+        st.caption(
+            "Energy your PV system is expected to produce beyond the house's own base load, i.e. what is "
+            "available for the car or appliances. It costs only the feed-in tariff you would otherwise "
+            f"receive ({settings.tariff.feed_in_tariff_eur_per_kwh:.3f} EUR/kWh), so tall bars are the best "
+            f"hours to run flexible devices. {best}Forecast: {solar_source}."
+        )
