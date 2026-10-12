@@ -47,3 +47,6 @@ archive/
 
 # Generated reports (curated ones are copied to docs/)
 reports/
+
+# Course task description (not part of the repo)
+projectInfo.txt
