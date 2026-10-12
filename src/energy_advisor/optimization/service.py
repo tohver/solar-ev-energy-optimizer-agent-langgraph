@@ -84,30 +84,38 @@ class OptimizerService:
         self,
         energy_kwh: float,
         power_kw: float,
+        start: str | None = None,
         deadline: str | None = None,
         interruptible: bool = True,
         use_solar: bool = True,
         device: str = "device",
     ) -> dict[str, Any]:
-        """Cheapest schedule from now until the user's deadline.
+        """Cheapest schedule between ``start`` (default: now) and ``deadline`` (default: start + 24 hours).
 
-        The window always starts now (rounded up to the next quarter hour). Without a deadline it is the
-        next 24 hours, and the output says so.
+        The start is rounded up to the next quarter hour; a start in the past becomes now. A missing
+        deadline is reported in the output so the agent can ask the user.
         """
         notes = []
-        earliest = _ceil_quarter(to_utc(self._clock()))
+        now = to_utc(self._clock())
+        begin = to_utc(parse_local_datetime(start, self._tz)) if start else now
+        if begin < now:
+            notes.append(
+                f"The start {begin.astimezone(self._tz):%Y-%m-%d %H:%M} is in the past; planning from now."
+            )
+            begin = now
+        earliest = _ceil_quarter(begin)
         if deadline:
             latest = to_utc(parse_local_datetime(deadline, self._tz))
         else:
             latest = earliest + DEFAULT_WINDOW
             notes.append(
-                f"No deadline given: assumed {DEFAULT_WINDOW_HOURS} hours from now "
+                f"No deadline given: assumed {DEFAULT_WINDOW_HOURS} hours from the start "
                 f"({latest.astimezone(self._tz):%Y-%m-%d %H:%M}). Ask the user whether that is right."
             )
         if latest - earliest > MAX_WINDOW:
             raise ScheduleError("The window can be at most 7 days long.")
         if latest <= earliest:
-            raise ScheduleError("The deadline must be in the future.")
+            raise ScheduleError("The deadline must be after the start (and in the future).")
 
         curve = self._prices.curve(floor_hour(earliest), _ceil_hour(latest))
         surplus: dict[datetime, tuple[float, float]] = {}

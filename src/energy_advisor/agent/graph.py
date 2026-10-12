@@ -1,13 +1,22 @@
-"""The agent: a LangGraph loop ``START -> agent -> (tools -> agent)* -> END``."""
+"""The agent: a LangGraph loop ``START -> agent -> (tools -> agent)* -> END`` with conversation memory.
+
+A checkpointer stores each conversation (thread) so follow-up answers ("by 7:00") reach the agent together
+with the earlier messages. The system context (date, calendar, location, app settings) is passed per turn
+through the run config and is NOT stored in the conversation, so it never goes stale or piles up.
+"""
 
 import logging
+import uuid
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -34,14 +43,20 @@ def build_system_context(now: datetime, context: str | None = None) -> str:
 
 
 def build_graph(
-    llm: BaseChatModel, tools: Sequence[BaseTool], instructions: str
+    llm: BaseChatModel,
+    tools: Sequence[BaseTool],
+    instructions: str,
+    checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
     llm_with_tools = llm.bind_tools(list(tools))
 
-    def agent_node(state: MessagesState) -> dict[str, Any]:
-        """Call the LLM with the system instructions + the conversation so far."""
-        messages = [SystemMessage(content=instructions), *state["messages"]]
-        return {"messages": [llm_with_tools.invoke(messages)]}
+    def agent_node(state: MessagesState, config: RunnableConfig) -> dict[str, Any]:
+        """Call the LLM with the instructions, this turn's system context and the conversation so far."""
+        context = (config.get("configurable") or {}).get("system_context")
+        system = [SystemMessage(content=instructions)]
+        if context:
+            system.append(SystemMessage(content=context))
+        return {"messages": [llm_with_tools.invoke([*system, *state["messages"]])]}
 
     builder = StateGraph(MessagesState)
     builder.add_node("agent", agent_node)
@@ -50,7 +65,7 @@ def build_graph(
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
     builder.add_edge("tools", "agent")
-    return builder.compile(name="energy_advisor")
+    return builder.compile(name="energy_advisor", checkpointer=checkpointer)
 
 
 class EnergyAdvisor:
@@ -64,13 +79,16 @@ class EnergyAdvisor:
         instructions: str = SYSTEM_PROMPT,
         default_context: str | None = None,
         recursion_limit: int = 25,
+        checkpointer: BaseCheckpointSaver[Any] | None = None,
     ) -> None:
         self.instructions = instructions
         self.tools = list(tools)
         self.default_context = default_context
         self._now = now
         self._recursion_limit = recursion_limit
-        self.graph = build_graph(llm, self.tools, instructions)
+        # in-memory by default: conversations live as long as the process (CLI chat, Streamlit server)
+        self.checkpointer = checkpointer or InMemorySaver()
+        self.graph = build_graph(llm, self.tools, instructions, self.checkpointer)
 
     @classmethod
     def from_settings(
@@ -98,22 +116,54 @@ class EnergyAdvisor:
     def tool_names(self) -> list[str]:
         return [t.name for t in self.tools]
 
-    def invoke(self, question: str, context: str | None = None) -> dict[str, Any]:
-        """Ask a question. The final answer is ``result["messages"][-1].content``.
+    @staticmethod
+    def new_thread_id() -> str:
+        return uuid.uuid4().hex
+
+    def history(self, thread_id: str) -> list[Any]:
+        """All stored messages of a conversation (empty for an unknown thread)."""
+        state = self.graph.get_state({"configurable": {"thread_id": thread_id}})
+        return list(state.values.get("messages", [])) if state and state.values else []
+
+    def invoke(
+        self, question: str, context: str | None = None, thread_id: str | None = None
+    ) -> dict[str, Any]:
+        """Ask a question. Pass the same ``thread_id`` to continue a conversation; without one, a new
+        conversation starts.
+
+        Returns the graph state: ``messages`` holds the whole conversation, ``turn_messages`` only this
+        turn (the question, tool calls/results and the answer), ``thread_id`` the conversation id.
+        The final answer is ``result["messages"][-1].content``.
 
         Never raises: a failure of the graph returns a normal-shaped result with an apology
         message and an ``error`` key.
         """
-        system_context = build_system_context(self._now(), context or self.default_context)
-        messages = [("system", system_context), ("user", question)]
+        thread_id = thread_id or self.new_thread_id()
+        extra = "\n".join(c for c in (self.default_context, context) if c) or None
+        config: RunnableConfig = {
+            "recursion_limit": self._recursion_limit,
+            "configurable": {
+                "thread_id": thread_id,
+                "system_context": build_system_context(self._now(), extra),
+            },
+        }
+        before = len(self.history(thread_id))
         try:
-            return self.graph.invoke(
-                {"messages": messages}, config={"recursion_limit": self._recursion_limit}
-            )
+            result = dict(self.graph.invoke({"messages": [("user", question)]}, config=config))
         except Exception as exc:
             logger.exception("Agent run failed")
-            apology = (
-                "Sorry, I could not complete the analysis because of a technical problem "
-                f"({type(exc).__name__}: {exc}). Please try again."
+            apology = AIMessage(
+                content=(
+                    "Sorry, I could not complete the analysis because of a technical problem "
+                    f"({type(exc).__name__}: {exc}). Please try again."
+                )
             )
-            return {"messages": [AIMessage(content=apology)], "error": str(exc)}
+            return {
+                "messages": [apology],
+                "turn_messages": [apology],
+                "error": str(exc),
+                "thread_id": thread_id,
+            }
+        result["turn_messages"] = result["messages"][before:]
+        result["thread_id"] = thread_id
+        return result

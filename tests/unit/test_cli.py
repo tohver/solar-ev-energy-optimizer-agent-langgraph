@@ -54,3 +54,9 @@ def test_commands_needing_the_llm_fail_cleanly_without_key(cli_env):
 def test_report_without_data_fails_cleanly(cli_env):
     result = runner.invoke(app, ["report"])
     assert result.exit_code != 0
+
+
+def test_chat_without_key_fails_cleanly(cli_env):
+    result = runner.invoke(app, ["chat"], input="hello\nexit\n")
+    assert result.exit_code == 1
+    assert "OPENAI_API_KEY is not set" in result.output

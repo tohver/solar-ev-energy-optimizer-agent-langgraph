@@ -67,7 +67,22 @@ that exercise each feature:
 | Recent summary | "How much did I use in the last 24 hours?" | `get_recent_energy_summary` |
 | Other locations | "What is the weather in Hamburg tomorrow?" (ambiguous names such as "Frankfurt" are flagged) | `get_weather_forecast` |
 
-### 1.4 Measure quality: `eval`
+### 1.4 Have a conversation: `chat` and the web app
+
+```bash
+uv run energy-advisor chat                                   # terminal conversation; 'exit' to quit
+uv run --extra app streamlit run app/streamlit_app.py        # web app at http://localhost:8501
+```
+
+The agent remembers the conversation: ask "When should I charge my EV with 20 kWh?", and it plans for the next
+24 hours, says so and asks by when; answer "By 7:00 tomorrow" and it recomputes with that deadline.
+
+The web app adds a sidebar with the **scheduling window**: *From* (default: now) and *Deadline* (default: From +
+24 hours; it follows the start until you change it yourself). While the toggle "Use this window in my questions"
+is on, scheduling questions use this window unless your message names other times. The second tab shows the
+hourly price and the solar surplus for the window. "New conversation" clears the memory.
+
+### 1.5 Measure quality: `eval`
 
 ```bash
 uv run energy-advisor eval                 # 15 cases, report in reports/
@@ -79,7 +94,7 @@ Each case is answered by the agent and scored by an LLM judge (accuracy, relevan
 usefulness) plus deterministic tool-usage metrics. Output: Markdown, JSON and a heatmap PNG. The cases live in
 `src/energy_advisor/evaluation/cases.yaml`; add your own without touching code.
 
-### 1.5 Check retrieval quality: `rag-benchmark`
+### 1.6 Check retrieval quality: `rag-benchmark`
 
 ```bash
 uv run energy-advisor rag-benchmark
@@ -89,7 +104,7 @@ For 12 labelled questions, shows at which rank the correct document appears for 
 search and hybrid search with LLM re-ranking, and summarizes with hit@3 and MRR (mean reciprocal rank: the
 average of 1/rank of the right document, where 1.0 is perfect).
 
-### 1.6 Charts: `report`
+### 1.7 Charts: `report`
 
 ```bash
 uv run energy-advisor report --out docs/img
@@ -98,7 +113,7 @@ uv run energy-advisor report --out docs/img
 Four PNG charts: the average day (consumption per device vs. solar yield), daily consumption vs. solar,
 tomorrow's price curve with the solar forecast and the best solar window, and projected annual savings.
 
-### 1.7 Change the household
+### 1.8 Change the household
 
 Everything is configured in `.env` (see `.env.example`), for example:
 
@@ -118,10 +133,13 @@ Re-run `seed-db` afterwards so the history matches the new household.
 
 Example: *"I need my EV charged with 30 kWh by 7:00 tomorrow."*
 
-1. **CLI** (`cli.py: ask`) loads `Settings` and builds all services (`services/container.py: build_services`).
+1. **CLI** (`cli.py: ask` or `chat`) or the web app loads `Settings` and builds all services
+   (`services/container.py: build_services`).
 2. **Agent** (`agent/graph.py: EnergyAdvisor.invoke`) adds a system context: current local date and time plus
    an 8-day calendar ("Monday = 2026-10-12 (today), Tuesday = 2026-10-13 (tomorrow), ...") and the household
-   location. It then runs the LangGraph loop.
+   location (and, in the app, the scheduling window). This context is passed with every turn but not stored.
+   The conversation itself is stored per thread by the checkpointer, so the agent sees earlier messages.
+   It then runs the LangGraph loop.
 3. **LLM decides** to call `find_cheapest_window(energy_kwh=30, power_kw=11, deadline="2026-10-13T07:00")`.
 4. **Tool** (`agent/tools.py`) forwards to `optimization/service.py: OptimizerService.cheapest_window`:
    - window = from now (rounded up to the next quarter hour) to the deadline, or 24 hours if none was given;
@@ -163,8 +181,8 @@ are grouped by how much they affect results. Each item says where it lives and h
 
 | # | Assumption | Value | Where | Notes |
 |---|---|---|---|---|
-| O1 | Window | always from **now** (rounded up to the next 15 minutes) until the user's deadline; `deadline` is the only time parameter | `optimization/service.py: cheapest_window` | No assumptions about where the car is or when a device may run. |
-| O2 | No deadline given | next **24 hours**, flagged in the output; the agent asks by when | `DEFAULT_WINDOW_HOURS` | |
+| O1 | Window start | the user's start (or the app's *From*), default **now**, rounded up to the next 15 minutes; a past start becomes now | `optimization/service.py: cheapest_window` | No assumptions about where the car is or when a device may run. |
+| O2 | No deadline given | **24 hours after the start**, flagged in the output; the agent asks by when and recomputes when the user answers | `DEFAULT_WINDOW_HOURS` | In the app the deadline defaults to *From* + 24 h and can be changed. |
 | O3 | Maximum window | 7 days | `MAX_WINDOW` | Beyond tomorrow, prices are estimates. |
 | O4 | EV charging power can be modulated continuously between 0 and 11 kW | – | `scheduling.py: _fill_interruptible` | Real wallboxes have a minimum (about 1.4 kW single-phase, 4.1 kW three-phase). A partly used slot is reported as a lower average power. |
 | O5 | Appliances run at constant power for `energy / power` hours | – | `scheduling.py: _run_contiguous` | Real cycles have heating peaks; the total cost is still right if the price is constant within a slot. |
@@ -251,13 +269,13 @@ so it is tested without an LLM.
 | `timeutils.py` | Time-zone-aware helpers: `make_clock`, `to_utc`, `parse_day`, `parse_local_datetime`, `day_bounds_utc`, `hours_between`, `calendar_lines` | Standard library `zoneinfo`. All arithmetic in UTC because Python does wall-clock arithmetic for local datetimes, which breaks on 23/25-hour DST days. Naive datetimes raise; ruff rule `DTZ` forbids them in the code. |
 | `llm.py` | `make_chat_model`, `make_embeddings` | `langchain-openai`; the only place that knows the API key and base URL. |
 | `logging_config.py` | `configure_logging` | **rich** log handler; third-party libraries only from WARNING up. |
-| `cli.py` | Commands `seed-db`, `build-index`, `rag-benchmark`, `ask`, `eval`, `report` | **Typer** (CLI from type hints) and **rich** (tables, panels, SVG export). Thin: parses options, builds services, calls modules, prints. Expected errors (no API key, no index) become a one-line message and exit code 1. |
+| `cli.py` | Commands `seed-db`, `build-index`, `rag-benchmark`, `ask`, `chat`, `eval`, `report` | **Typer** (CLI from type hints) and **rich** (tables, panels, SVG export). Thin: parses options, builds services, calls modules, prints. Expected errors (no API key, no index) become a one-line message and exit code 1. |
 
 ### `agent/`: the LangGraph agent
 
 | File | What it does | How / why |
 |---|---|---|
-| `graph.py` | `build_graph` creates the loop `agent → tools → agent → … → END`; `EnergyAdvisor` wraps it (`invoke(question, context)`, `from_settings`); `build_system_context` adds date, calendar and location | **LangGraph** `StateGraph` with `ToolNode(handle_tool_errors=True)` and `tools_condition` routing. A recursion limit (25) stops endless loops; any failure returns a normal-shaped apology result. The clock is injected, so tests can freeze time. |
+| `graph.py` | `build_graph` creates the loop `agent → tools → agent → … → END`; `EnergyAdvisor` wraps it (`invoke(question, context, thread_id)`, `history`, `from_settings`); `build_system_context` adds date, calendar and location | **LangGraph** `StateGraph` with `ToolNode(handle_tool_errors=True)` and `tools_condition` routing, compiled with a **checkpointer** (`InMemorySaver`) that stores each conversation under a thread id. The system context travels in the run config (`configurable.system_context`) and is added in the agent node, so it is fresh every turn and never stored. A recursion limit (25) stops endless loops; any failure returns a normal-shaped apology result. The clock is injected, so tests can freeze time. |
 | `tools.py` | `build_tools(services, optimizer=True)` returns the 9 tools | LangChain `@tool` functions created inside a factory (closures over the injected services) instead of module globals, so tests can pass a temporary database and fake HTTP. Each tool validates input and returns `{"error": ...}` on expected problems, so the LLM can recover. Docstrings are written for the LLM: they decide which tool it calls. |
 | `prompts.py` | `build_system_prompt(optimizer)` and `SYSTEM_PROMPT` | Built from parts so the ablation run can remove the optimizer sections while keeping everything else identical. |
 | `trace.py` | `final_answer`, `tool_calls`, `tool_outputs`, `tools_with_errors` | Reads the message list of a result; used by the CLI and the evaluation. |
@@ -330,6 +348,13 @@ so it is tested without an LLM.
 | `runner.py` | `run_evaluation` → list of `CaseResult` | Logs every tool call and argument per case. |
 | `report.py` | `generate_report`, `render_markdown`, `save_report` | Averages, strengths/weaknesses, recommendations; Markdown + JSON files. |
 
+### `ui/` and `app/`: the web app
+
+| File | What it does | How / why |
+|---|---|---|
+| `ui/window.py` | `SchedulingWindow`, `default_window` (now to now + 24 h), `default_deadline`, `window_from_inputs`, `window_context` (text for the agent) | Pure functions so the page stays thin and the rules are unit-tested; 24 hours are real hours (also across a clock change). |
+| `app/streamlit_app.py` | The page: chat with memory, the scheduling-window sidebar, tool calls per answer, price and solar charts for the window | **Streamlit** (`st.chat_message`, `st.chat_input`, `st.session_state`, `st.cache_resource` for one agent per server process). Outside the package because it is an application, not library code; installed with the `app` extra. |
+
 ### `viz/`: charts
 
 | File | What it does | How / why |
@@ -354,7 +379,7 @@ so it is tested without an LLM.
 ## 5. Tests
 
 ```bash
-uv run pytest                  # 175 offline tests, a few seconds
+uv run pytest                  # 189 offline tests, a few seconds
 uv run pytest -m integration   # real Open-Meteo, Energy-Charts, aWATTar
 uv run pytest -m llm           # real LLM and embeddings (costs a little)
 ```
@@ -369,9 +394,11 @@ uv run pytest -m llm           # real LLM and embeddings (costs a little)
 | `test_data.py` | Heat pump vs. temperature, PV rows and costs, seeding (local days, reproducibility, re-seeding F-10, DST day), tool outputs (F-04, F-07, F-08), energy balance consistency. |
 | `test_optimization.py` | Contiguous and interruptible schedules, merged blocks, solar valuation, negative prices, validation errors, tool outputs (overnight EV, dishwasher, 24 h default, past start, night-time appliance). |
 | `test_rag.py` | Documents and topics, index without duplicates (F-03, F-11), RRF, BM25, re-ranker behaviour (F-06), fallbacks, benchmark maths. |
-| `test_agent.py` | The 9 tools, graph nodes, system context, tool call → answer, tool error → message, failure → apology, ablation. Uses a scripted fake LLM. |
+| `test_agent.py` | The 9 tools, graph nodes, system context, tool call → answer, tool error → message, failure → apology, ablation, conversation memory (follow-up answer, isolated threads, context not stored). Uses a scripted fake LLM. |
 | `test_evaluation.py` | Cases file, tool metrics, judge clamping and failure, runner, report and files. |
-| `test_cli.py` | Help, `seed-db` offline, clean errors without an API key. |
+| `test_cli.py` | Help, `seed-db` offline, clean errors without an API key (also for `chat`). |
+| `test_ui_window.py` | Default window now to now + 24 h (also across a clock change), overriding the deadline, the text for the agent. |
+| `test_app.py` | The Streamlit page rendered headless (`AppTest`): default window, deadline following the start, error without an API key. |
 
 How the tests stay offline and deterministic: HTTP calls are answered from recorded JSON files (**respx**) or
 refused (an `httpx.MockTransport` that raises), the LLM is a scripted fake (`GenericFakeChatModel` subclass),

@@ -31,6 +31,7 @@ Contents:
 | Place coordinates for other cities | Open-Meteo geocoding | In memory (per running process) | Until the program ends | Weather for places other than Munich |
 | BM25 keyword index | Built from the stored chunks | In memory | Until the program ends | Knowledge-base search |
 | Evaluation reports, charts | `eval`, `report` commands | `reports/` (or the folder you pass) | Until you delete them | You |
+| Conversations (all messages of a chat, including tool calls and results) | The agent | In memory (LangGraph `InMemorySaver`), one thread per conversation | Until the program ends (CLI `chat`) or the Streamlit server stops; "New conversation" starts a new thread | Every following turn of the same conversation |
 
 Nothing about **planned** device runs is stored anywhere. Each scheduling request is calculated on its own
 (see [5.6](#56-why-a-second-device-does-not-know-about-the-first)).
@@ -185,10 +186,12 @@ and returns per day: total PV energy, total surplus, and the 4 hours with the la
 
 ### 5.1 The window
 
-- **Start:** always **now**, rounded up to the next quarter hour.
-- **End:** the deadline given by the user. If none is given: **24 hours from now**, and the result says so,
-  so the agent can ask by when the device is needed.
-- At most 7 days long. A deadline in the past is an error.
+- **Start:** the start time given by the user (or set in the app); by default **now**. It is rounded up to
+  the next quarter hour, and a start in the past becomes now.
+- **End:** the deadline given by the user (or set in the app). If none is given: **24 hours after the start**,
+  and the result says so, so the agent can ask by when the device is needed. The user can answer in the same
+  conversation and the agent recomputes with that deadline (the conversation is remembered, see section 1).
+- At most 7 days long. A deadline before the start is an error.
 
 ### 5.2 The input slots
 
@@ -227,7 +230,7 @@ Starts whose run would end after the deadline are not allowed.
 
 ### 5.5 Baseline and saving
 
-The **baseline** is the cost of starting immediately at the beginning of the window and running at full
+The **baseline** is the cost of starting immediately at the start of the window and running at full
 power without pause. **Saving = baseline cost − cost of the recommended schedule.**
 
 Example (interruptible, 6 kWh, 11 kW, three hours priced 0.30, 0.30, 0.20 EUR/kWh, 4 kWh of surplus in the

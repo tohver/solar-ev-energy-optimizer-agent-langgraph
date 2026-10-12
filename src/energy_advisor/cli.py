@@ -162,6 +162,31 @@ def ask(
         console.print(f"[green]Saved:[/] {export_svg}")
 
 
+@app.command()
+@handle_errors
+def chat() -> None:
+    """Talk to the advisor in a conversation (it remembers earlier messages). Type 'exit' to quit."""
+    from energy_advisor.agent.graph import EnergyAdvisor
+    from energy_advisor.agent.trace import final_answer, tool_calls
+
+    advisor = EnergyAdvisor.from_settings(_settings())
+    thread_id = advisor.new_thread_id()
+    console.print("[bold]Energy advisor[/] - ask a question; 'exit' to quit.")
+    while True:
+        try:
+            question = console.input("[bold cyan]You:[/] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if question.lower() in {"", "exit", "quit"}:
+            break
+        with console.status("Thinking..."):
+            result = advisor.invoke(question, thread_id=thread_id)
+        for call in tool_calls({"messages": result["turn_messages"]}):
+            args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
+            console.print(f"  [dim]tool: {call['name']}({args})[/]")
+        console.print(Panel(Markdown(final_answer(result)), title="Advisor", border_style="green"))
+
+
 @app.command("eval")
 @handle_errors
 def evaluate(

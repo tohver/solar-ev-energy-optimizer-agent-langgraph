@@ -65,7 +65,7 @@ object and injected, so tests replace the network, the clock and the LLM with fa
 | **Realistic household history** | Generated from real past weather and real past prices: PV from irradiance, heat pump with temperature-dependent COP, EV sessions, appliance cycles. |
 | **Hybrid RAG** | Vector search + BM25, fused with Reciprocal Rank Fusion, then LLM re-ranking with a fallback. Benchmarked with hit@k and MRR. |
 | **Evaluation framework** | 15 YAML test cases, LLM-as-judge plus deterministic tool-usage metrics, Markdown/JSON reports and a heatmap. |
-| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 175 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
+| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 189 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
 
 ## Quick start
 
@@ -78,6 +78,8 @@ cp .env.example .env              # then add your OPENAI_API_KEY
 uv run energy-advisor seed-db     # 30 days of household history from real weather and prices
 uv run energy-advisor build-index # embed the knowledge base into Chroma
 uv run energy-advisor ask "I need my EV charged with 30 kWh by 7:00 next Monday. What is the cheapest window?"
+uv run energy-advisor chat        # conversation with memory
+uv run --extra app streamlit run app/streamlit_app.py   # web app
 ```
 
 ## Commands
@@ -88,6 +90,8 @@ uv run energy-advisor ask "I need my EV charged with 30 kWh by 7:00 next Monday.
 | `energy-advisor build-index [--rebuild]` | Splits and embeds `knowledge_base/*.txt` into `data/vectorstore/`. |
 | `energy-advisor rag-benchmark [--k 3]` | hit@k and MRR for vector, hybrid and hybrid + re-ranking retrieval on 12 labelled queries. |
 | `energy-advisor ask "<question>" [--export-svg file.svg]` | One answer plus the tool calls the agent made. |
+| `energy-advisor chat` | A conversation: the agent remembers earlier messages (e.g. asks by when, then uses your answer). |
+| `streamlit run app/streamlit_app.py` | Web app: chat with memory, scheduling window (from = now, deadline = +24 h by default), price and solar charts. |
 | `energy-advisor eval [--limit N] [--cases file.yaml]` | Runs the evaluation cases; writes Markdown, JSON and a heatmap to `reports/`. |
 | `energy-advisor report` | Charts: usage profile vs. solar, daily usage vs. solar, tomorrow's price/solar window, savings. |
 

@@ -215,3 +215,20 @@ def test_window_starts_now_and_any_hour_is_allowed(tools):
     )
     assert result["window"]["start"] == "2026-10-02 09:30"
     assert "2026-10-03 01:00" <= result["recommended_schedule"][0]["start"] <= "2026-10-03 03:00"
+
+
+def test_start_can_be_given_and_the_deadline_defaults_to_24_hours_after_it(tools):
+    result = tools["find_cheapest_window"].invoke(
+        {"energy_kwh": 5, "power_kw": 11, "start": "2026-10-04T20:00", "use_solar": False}
+    )  # 2.5 days ahead: no error any more
+    assert result["window"]["start"] == "2026-10-04 20:00"
+    assert result["window"]["deadline"] == "2026-10-05 20:00"
+    assert any("No deadline given" in n for n in result["notes"])
+
+
+def test_start_in_the_past_becomes_now(tools):
+    result = tools["find_cheapest_window"].invoke(
+        {"energy_kwh": 5, "power_kw": 11, "start": "2026-10-01T08:00", "deadline": "2026-10-03T08:00"}
+    )
+    assert result["window"]["start"] == "2026-10-02 09:30"
+    assert any("in the past" in n for n in result["notes"])

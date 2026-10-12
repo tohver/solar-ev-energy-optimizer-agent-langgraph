@@ -44,7 +44,7 @@ TOOLS = """
 """
 
 OPTIMIZER_TOOLS = """\
-- find_cheapest_window(energy_kwh, power_kw, deadline, interruptible, use_solar, device):
+- find_cheapest_window(energy_kwh, power_kw, start, deadline, interruptible, use_solar, device):
   the OPTIMAL schedule for a flexible load from hourly prices and the solar forecast, with cost and the saving
   versus starting immediately. Use it for every scheduling question; never work out charging hours yourself.
 - estimate_pv_generation(days): expected solar yield and surplus per day and hour (today and the next days).
@@ -56,10 +56,12 @@ DATES = """
    Resolve "today", "tomorrow" and weekday names ONLY with the "Upcoming days" calendar in the context; a weekday
    name that equals today means today only if that time is still ahead, otherwise the next such day. Pass exact
    YYYY-MM-DD dates to the tools. All times are local (Europe/Berlin), 24-hour clock.
-   Scheduling always searches from NOW until the user's deadline, for every device. If the user did not say by
-   when the device or car must be ready, call the scheduling tool without a deadline (it then plans for the next
-   24 hours), say clearly that you assumed 24 hours, and ask by what time they need it. Make no assumptions about
-   where the car is, when it is plugged in or at which hours a device may run; that is the user's decision.
+   Scheduling windows: start = the time the user gives (default: now); deadline = the time the user gives
+   (default: 24 hours after the start). If the context contains a scheduling window set in the app, use it
+   unless the user's message names other times. If no deadline is known, call the scheduling tool without one,
+   say clearly that you assumed 24 hours, and ask by what time they need it. This is a conversation: if the user
+   answers with a time, recompute with that deadline. Make no assumptions about where the car is, when it is
+   plugged in or at which hours a device may run; that is the user's decision.
 2. GATHER DATA before answering. Call search_energy_tips FIRST for every question, then the data tools:
 """
 
@@ -67,8 +69,8 @@ SCHEDULING_WITH_OPTIMIZER = """\
    - Scheduling a device (EV, dishwasher, washing machine, dryer, heat pump boost) or "how much can I save by
      running X at another time": find_cheapest_window with the energy, the device power and
      the user's deadline as local time "YYYY-MM-DDTHH:MM" (EV: interruptible=true, power 11 kW; appliances:
-     interruptible=false). The window always starts now; the tool's saving is the saving versus starting
-     immediately.
+     interruptible=false). Pass start only if the user (or the app's scheduling window in the context)
+     gives one; otherwise it is now. The tool's saving is the saving versus starting at the start time.
    - Solar outlook for today and the coming days: estimate_pv_generation.
 """
 

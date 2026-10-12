@@ -5,12 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ## [Unreleased]
 
+### Added
+- Conversation memory: LangGraph checkpointer with one thread per conversation; the system context is sent
+  every turn but not stored. New CLI command `chat`.
+- Streamlit web app (`app/streamlit_app.py`, extra `app`): chat, scheduling window (From = now, Deadline =
+  From + 24 h by default, both adjustable), tool calls per answer, price and solar charts for the window.
+
 ### Changed
 - Scheduling always searches from now until the user's deadline, for every device. Without a deadline the agent
   plans for the next 24 hours, says so and asks by when it is needed. Removed the assumption that an EV is only
   at home from 18:00.
-- `find_cheapest_window` has a single optional time parameter, `deadline`; the window always starts now
-  (the `earliest_start` parameter and the "after dinner = 20:00" prompt rule were removed).
+- `find_cheapest_window` takes an optional `start` (default now) and `deadline` (default start + 24 h); the
+  "after dinner = 20:00" prompt rule was removed.
 
 ## [1.0.0] - 2026-10-12
 

@@ -150,6 +150,7 @@ def build_tools(services: Services, optimizer: bool = True) -> list[BaseTool]:
     def find_cheapest_window(
         energy_kwh: float,
         power_kw: float,
+        start: str | None = None,
         deadline: str | None = None,
         interruptible: bool = True,
         use_solar: bool = True,
@@ -158,24 +159,24 @@ def build_tools(services: Services, optimizer: bool = True) -> list[BaseTool]:
         """Compute the cheapest time to run a flexible load, using hourly prices AND the solar forecast.
 
         ALWAYS use this for "when should I charge/run ..." questions instead of working out hours yourself.
-        It searches from NOW until the deadline and returns the exact schedule, its cost in EUR, the energy
-        from solar, and the saving compared with starting immediately.
-        The deadline comes from the user. If they did not give one, leave it empty: the tool then plans for the
-        next 24 hours, and you must tell the user so and ask by when they need it.
+        It searches between start (default: now) and deadline (default: 24 hours after the start) and returns
+        the exact schedule, its cost in EUR, the energy from solar, and the saving compared with starting at
+        the start time. Start and deadline come from the user (or from the window set in the app); never
+        invent them. Without a deadline, tell the user that 24 hours were assumed and ask by when they need it.
 
         Args:
             energy_kwh: Energy the device needs, e.g. 30 for EV charging, 1.0 for a dishwasher cycle.
             power_kw: Power while running: EV wallbox 11; dishwasher about 0.5; washing machine about 0.4;
                 dryer about 0.6; heat pump boost about 2.
-            deadline: Local time "YYYY-MM-DDTHH:MM" by which it must be finished, as given by the user
-                (empty = 24 hours from now).
+            start: Local time "YYYY-MM-DDTHH:MM" from which the device may run (empty = now).
+            deadline: Local time "YYYY-MM-DDTHH:MM" by which it must be finished (empty = start + 24 hours).
             interruptible: True if it may pause (EV charging); False if it must run in one go (appliances).
             use_solar: Consider own solar surplus (valued at the feed-in tariff).
             device: Name for the output, e.g. "EV".
         """
         try:
             return services.optimizer.cheapest_window(
-                energy_kwh, power_kw, deadline, interruptible, use_solar, device
+                energy_kwh, power_kw, start, deadline, interruptible, use_solar, device
             )
         except (InvalidDateError, ScheduleError) as exc:
             return {"error": str(exc)}

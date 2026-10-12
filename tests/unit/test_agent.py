@@ -118,3 +118,40 @@ def test_ablation_removes_the_optimizer_tools_and_prompt_sections(services):
     assert without == EXPECTED_TOOLS - {"find_cheapest_window", "estimate_pv_generation"}
     assert "find_cheapest_window" not in build_system_prompt(optimizer=False)
     assert "find_cheapest_window" in build_system_prompt(optimizer=True)
+
+
+# ----------------------------------------------------------------------------- conversation memory
+def test_follow_up_answer_reaches_the_agent_with_the_earlier_conversation(services):
+    advisor, llm = _advisor(
+        services,
+        AIMessage(content="By what time do you need the car?"),
+        AIMessage(content="Then charge from 01:00 to 04:00."),
+    )
+    first = advisor.invoke("When should I charge my EV with 30 kWh?")
+    second = advisor.invoke("By 7:00 tomorrow.", thread_id=first["thread_id"])
+
+    assert final_answer(second) == "Then charge from 01:00 to 04:00."
+    seen = [m.content for m in llm.received[1]]
+    assert "When should I charge my EV with 30 kWh?" in seen
+    assert "By what time do you need the car?" in seen
+    assert [m.content for m in second["turn_messages"]] == [
+        "By 7:00 tomorrow.",
+        "Then charge from 01:00 to 04:00.",
+    ]
+    assert len(second["messages"]) == 4
+
+
+def test_conversations_are_isolated(services):
+    advisor, llm = _advisor(services, AIMessage(content="a"), AIMessage(content="b"))
+    advisor.invoke("first question")
+    advisor.invoke("second question")  # no thread id: a new conversation
+    assert "first question" not in [m.content for m in llm.received[1]]
+
+
+def test_system_context_is_sent_every_turn_but_not_stored(services):
+    advisor, llm = _advisor(services, AIMessage(content="a"), AIMessage(content="b"))
+    first = advisor.invoke("q1", context="Window: X")
+    advisor.invoke("q2", thread_id=first["thread_id"])
+    assert "Window: X" in llm.received[0][1].content
+    assert "Window: X" not in llm.received[1][1].content  # context of turn 1 does not leak into turn 2
+    assert all(m.type != "system" for m in advisor.history(first["thread_id"]))
