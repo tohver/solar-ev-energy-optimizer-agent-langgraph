@@ -3,18 +3,71 @@
 import logging
 import math
 from collections import defaultdict
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from energy_advisor.config import Settings
 from energy_advisor.domain.household import base_load_kw
 from energy_advisor.domain.solar import pv_energy_kwh
-from energy_advisor.optimization.scheduling import Schedule, ScheduleError, Slot, find_cheapest_schedule
+from energy_advisor.optimization.scheduling import (
+    Schedule,
+    ScheduleError,
+    Slot,
+    clip_slots,
+    find_cheapest_schedule,
+)
 from energy_advisor.services.prices import PriceCurve, PriceService
 from energy_advisor.services.weather import WeatherService
 from energy_advisor.timeutils import Clock, floor_hour, parse_local_datetime, to_utc
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class DeviceSpec:
+    """A flexible load the planner can schedule."""
+
+    key: str
+    name: str
+    energy_kwh: float
+    power_kw: float
+    interruptible: bool  # True: may pause and modulate (EV); False: runs in one go (appliances)
+
+
+# The MVP device set of the app; energies and powers are typical values (see guide.md, section 3).
+DEVICE_PRESETS: dict[str, DeviceSpec] = {
+    "ev": DeviceSpec("ev", "Electric car", 20.0, 11.0, True),
+    "dishwasher": DeviceSpec("dishwasher", "Dishwasher", 1.0, 0.5, False),
+    "washing_machine": DeviceSpec("washing_machine", "Washing machine", 0.8, 0.4, False),
+}
+
+
+@dataclass(frozen=True)
+class WindowInputs:
+    earliest: datetime
+    latest: datetime
+    slots: list[Slot]  # clipped to the window; household price and solar surplus per slot
+    curve: PriceCurve
+    solar_source: str
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DeviceResult:
+    device: DeviceSpec
+    schedule: Schedule | None
+    error: str | None
+
+
+@dataclass(frozen=True)
+class DevicePlan:
+    window: WindowInputs
+    results: list[DeviceResult]
+    solar_left_kwh: float
+
+
 MAX_WINDOW = timedelta(days=7)
 DEFAULT_WINDOW_HOURS = 24
 DEFAULT_WINDOW = timedelta(hours=DEFAULT_WINDOW_HOURS)
@@ -80,24 +133,15 @@ class OptimizerService:
         }
 
     # ------------------------------------------------------------------ scheduling
-    def cheapest_window(
-        self,
-        energy_kwh: float,
-        power_kw: float,
-        start: str | None = None,
-        deadline: str | None = None,
-        interruptible: bool = True,
-        use_solar: bool = True,
-        device: str = "device",
-    ) -> dict[str, Any]:
-        """Cheapest schedule between ``start`` (default: now) and ``deadline`` (default: start + 24 hours).
-
-        The start is rounded up to the next quarter hour; a start in the past becomes now. A missing
-        deadline is reported in the output so the agent can ask the user.
-        """
-        notes = []
+    def window(
+        self, start: datetime | None, deadline: datetime | None, use_solar: bool = True
+    ) -> WindowInputs:
+        """Everything a schedule needs for ``[start, deadline)``: the slots with household price and solar
+        surplus, plus sources and notes. ``start`` defaults to now (a past start becomes now) and is rounded up
+        to the next quarter hour; ``deadline`` defaults to start + 24 hours (noted in ``notes``)."""
+        notes: list[str] = []
         now = to_utc(self._clock())
-        begin = to_utc(parse_local_datetime(start, self._tz)) if start else now
+        begin = to_utc(start) if start else now
         if begin < now:
             notes.append(
                 f"The start {begin.astimezone(self._tz):%Y-%m-%d %H:%M} is in the past; planning from now."
@@ -105,7 +149,7 @@ class OptimizerService:
             begin = now
         earliest = _ceil_quarter(begin)
         if deadline:
-            latest = to_utc(parse_local_datetime(deadline, self._tz))
+            latest = to_utc(deadline)
         else:
             latest = earliest + DEFAULT_WINDOW
             notes.append(
@@ -128,33 +172,89 @@ class OptimizerService:
             except Exception as exc:
                 logger.warning("Solar forecast unavailable: %s", exc)
                 notes.append("Solar forecast unavailable; scheduled on grid prices only.")
-        slots = [
-            Slot(s.start, s.end, s.price_eur_per_kwh, surplus.get(floor_hour(s.start), (0.0, 0.0))[1])
-            for s in curve.slots
-        ]
-        feed_in = self._settings.tariff.feed_in_tariff_eur_per_kwh
-        schedule = find_cheapest_schedule(
-            slots,
-            energy_kwh,
-            power_kw,
+        slots = clip_slots(
+            [
+                Slot(s.start, s.end, s.price_eur_per_kwh, surplus.get(floor_hour(s.start), (0.0, 0.0))[1])
+                for s in curve.slots
+            ],
             earliest,
             latest,
-            feed_in,
+        )
+        return WindowInputs(earliest, latest, slots, curve, solar_source, notes + curve.notes)
+
+    def cheapest_window(
+        self,
+        energy_kwh: float,
+        power_kw: float,
+        start: str | None = None,
+        deadline: str | None = None,
+        interruptible: bool = True,
+        use_solar: bool = True,
+        device: str = "device",
+    ) -> dict[str, Any]:
+        """Tool backend: cheapest schedule between ``start`` (default: now) and ``deadline`` (default: start + 24 h)."""
+        w = self.window(
+            parse_local_datetime(start, self._tz) if start else None,
+            parse_local_datetime(deadline, self._tz) if deadline else None,
+            use_solar,
+        )
+        schedule = find_cheapest_schedule(
+            w.slots,
+            energy_kwh,
+            power_kw,
+            w.earliest,
+            w.latest,
+            self._settings.tariff.feed_in_tariff_eur_per_kwh,
             interruptible=interruptible,
             use_solar=use_solar,
         )
-        notes += curve.notes
         return self._output(
             schedule,
             device,
             energy_kwh,
             power_kw,
             interruptible,
-            earliest,
-            latest,
-            curve,
-            solar_source,
-            notes,
+            w.earliest,
+            w.latest,
+            w.curve,
+            w.solar_source,
+            w.notes,
+        )
+
+    def plan_devices(
+        self, devices: Sequence[DeviceSpec], start: datetime | None = None, deadline: datetime | None = None
+    ) -> DevicePlan:
+        """Schedule several devices in the same window, sharing the solar surplus.
+
+        Devices are planned one after another, largest energy first; the solar energy a device takes is
+        removed before the next one is planned, so the same surplus is never counted twice.
+        """
+        w = self.window(start, deadline)
+        feed_in = self._settings.tariff.feed_in_tariff_eur_per_kwh
+        remaining = {s.start: s.solar_kw * s.hours for s in w.slots}
+        results: dict[str, DeviceResult] = {}
+        for device in sorted(devices, key=lambda d: -d.energy_kwh):
+            slots = [Slot(s.start, s.end, s.grid_price, remaining[s.start] / s.hours) for s in w.slots]
+            try:
+                schedule = find_cheapest_schedule(
+                    slots,
+                    device.energy_kwh,
+                    device.power_kw,
+                    w.earliest,
+                    w.latest,
+                    feed_in,
+                    device.interruptible,
+                )
+            except ScheduleError as exc:
+                results[device.key] = DeviceResult(device, None, str(exc))
+                continue
+            for slot_start, used in schedule.solar_by_slot.items():
+                remaining[slot_start] = max(0.0, remaining[slot_start] - used)
+            results[device.key] = DeviceResult(device, schedule, None)
+        return DevicePlan(
+            window=w,
+            results=[results[d.key] for d in devices],  # in the user's order
+            solar_left_kwh=sum(remaining.values()),
         )
 
     def _output(

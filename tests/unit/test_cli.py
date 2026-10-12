@@ -22,6 +22,7 @@ def cli_env(tmp_path, monkeypatch):
 
     offline = httpx.Client(transport=httpx.MockTransport(refuse))
     monkeypatch.setattr("energy_advisor.clients.open_meteo.default_http_client", lambda *a, **k: offline)
+    monkeypatch.setattr("energy_advisor.services.container.default_http_client", lambda *a, **k: offline)
     return tmp_path
 
 

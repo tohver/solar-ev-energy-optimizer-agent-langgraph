@@ -244,9 +244,13 @@ Each call of `find_cheapest_window` is calculated **from scratch** and nothing i
 - the solar surplus is recalculated from the weather forecast on every call, always as the full surplus;
 - the schedule of the first device is returned to the LLM but is **not recorded** as "this surplus is taken".
 
-So if you ask about the EV and then about the dishwasher for the same hours, both plans count the same solar
-energy, and the total cost of both is too low. A fix would need either one call that schedules several devices
-together, or a store of planned runs that later calls subtract from the surplus.
+So if you ask the **chat** about the EV and then about the dishwasher for the same hours, both plans count the
+same solar energy, and the total cost of both is too low.
+
+The app's **Planner** avoids this: it schedules all chosen devices in one go (`plan_devices`). Devices are planned
+one after another, the largest energy first. After each device, the solar energy it takes in each slot is
+subtracted, and the next device only sees what is left. The table therefore never shows the same solar kWh
+twice.
 
 ---
 

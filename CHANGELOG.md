@@ -8,8 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 ### Added
 - Conversation memory: LangGraph checkpointer with one thread per conversation; the system context is sent
   every turn but not stored. New CLI command `chat`.
-- Streamlit web app (`app/streamlit_app.py`, extra `app`): chat, scheduling window (From = now, Deadline =
-  From + 24 h by default, both adjustable), tool calls per answer, price and solar charts for the window.
+- Streamlit web app (`app/streamlit_app.py`, extra `app`) with three views: chat (example questions, time
+  window in the sidebar: From = now, Deadline = From + 24 h by default), **planner** (day + devices + OK ->
+  best windows on a chart and in a table) and prices & solar.
+- Multi-device planner (`OptimizerService.plan_devices`): devices share the solar surplus, so it is not counted
+  twice.
 
 ### Changed
 - Scheduling always searches from now until the user's deadline, for every device. Without a deadline the agent

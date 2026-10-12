@@ -77,10 +77,19 @@ uv run --extra app streamlit run app/streamlit_app.py        # web app at http:/
 The agent remembers the conversation: ask "When should I charge my EV with 20 kWh?", and it plans for the next
 24 hours, says so and asks by when; answer "By 7:00 tomorrow" and it recomputes with that deadline.
 
-The web app adds a sidebar with the **scheduling window**: *From* (default: now) and *Deadline* (default: From +
-24 hours; it follows the start until you change it yourself). While the toggle "Use this window in my questions"
-is on, scheduling questions use this window unless your message names other times. The second tab shows the
-hourly price and the solar surplus for the window. "New conversation" clears the memory.
+The web app has three views:
+
+- **Chat**: the conversation with memory. An empty chat shows a greeting and four example questions as small
+  buttons; clicking one sends it. The sidebar holds the **time window for chat questions**: *From* (default: now)
+  and *Deadline* (default: From + 24 hours; it follows the start until you change it yourself). While the toggle
+  "Use this window in my questions" is on, scheduling questions use this window unless your message names other
+  times. "New conversation" clears the memory and returns to the chat.
+- **Planner**: the main feature for everyday use. Choose a **day** (today = from now for 24 hours; a later day =
+  that whole day), pick the **devices** (Electric car, Dishwasher, Washing machine) and press **OK**. The chart
+  shows when each device should run (coloured bars) over the price line and the solar surplus, and the table
+  lists the times, energy, solar share, cost and saving. The devices share the solar surplus, so it is never
+  counted twice. No LLM is involved: the result comes straight from the optimizer.
+- **Prices & solar**: hourly price and solar surplus of a chosen day, side by side.
 
 ### 1.5 Measure quality: `eval`
 
@@ -285,7 +294,7 @@ so it is tested without an LLM.
 | File | What it does | How / why |
 |---|---|---|
 | `scheduling.py` | `find_cheapest_schedule(slots, energy, power, earliest, deadline, feed_in, interruptible, use_solar)` returns a `Schedule` of `Block`s with cost, solar share and the baseline cost | **Plain Python, no LLM and no pandas**, because the result must be deterministic, exact and unit-testable. *Contiguous* loads: every possible start time is evaluated (`_run_contiguous`), the cheapest wins. *Interruptible* loads: each slot offers a "solar" chunk (priced at the feed-in tariff) and a "grid" chunk (priced at the retail price); the cheapest chunks are filled first (`_fill_interruptible`). This greedy approach is optimal because cost is linear in energy. `slot_energy_cost` takes solar first unless grid power is cheaper (deeply negative prices). |
-| `service.py` | `OptimizerService.cheapest_window` (tool backend): builds the window, fetches the price curve and the solar surplus, calls the scheduler, formats the output in local time; `pv_forecast` (tool backend for `estimate_pv_generation`); `solar_surplus` | Connects the pure scheduler to the services. Window rules: start = now, deadline = the user's or now + 24 h (flagged), maximum 7 days. |
+| `service.py` | `OptimizerService.window` (window, price slots and solar surplus for an interval), `plan_devices` (several devices in one window, sharing the solar surplus; used by the app's planner), `DEVICE_PRESETS` (car 20 kWh at 11 kW, dishwasher 1.0 kWh at 0.5 kW, washing machine 0.8 kWh at 0.4 kW); `cheapest_window` (tool backend): builds the window, fetches the price curve and the solar surplus, calls the scheduler, formats the output in local time; `pv_forecast` (tool backend for `estimate_pv_generation`); `solar_surplus` | Connects the pure scheduler to the services. Window rules: start = now, deadline = the user's or now + 24 h (flagged), maximum 7 days. |
 
 ### `services/`: business logic around the data
 
@@ -352,8 +361,9 @@ so it is tested without an LLM.
 
 | File | What it does | How / why |
 |---|---|---|
+| `ui/planner.py` | `day_window` (today = now rounded up to the quarter hour + 24 h; later day = midnight to midnight; at most 6 days ahead), `hourly_rows`, `window_bars`, `summary_rows`, `window_label` | Turns a `DevicePlan` into rows for the chart and the table; pure functions, unit-tested. |
 | `ui/window.py` | `SchedulingWindow`, `default_window` (now to now + 24 h), `default_deadline`, `window_from_inputs`, `window_context` (text for the agent) | Pure functions so the page stays thin and the rules are unit-tested; 24 hours are real hours (also across a clock change). |
-| `app/streamlit_app.py` | The page: chat with memory, the scheduling-window sidebar, tool calls per answer, price and solar charts for the window | **Streamlit** (`st.chat_message`, `st.chat_input`, `st.session_state`, `st.cache_resource` for one agent per server process). Outside the package because it is an application, not library code; installed with the `app` extra. |
+| `app/streamlit_app.py` | Three views (chat with example questions, planner, prices & solar), the chat time-window sidebar, tool calls per answer | **Altair** charts (bundled with Streamlit): planner = price line, solar bars and device bands on top, a device timeline below with a shared time axis. `st.segmented_control` switches views, `st.pills` selects devices. | **Streamlit** (`st.chat_message`, `st.chat_input`, `st.session_state`, `st.cache_resource` for one agent per server process). Outside the package because it is an application, not library code; installed with the `app` extra. |
 
 ### `viz/`: charts
 
@@ -379,7 +389,7 @@ so it is tested without an LLM.
 ## 5. Tests
 
 ```bash
-uv run pytest                  # 189 offline tests, a few seconds
+uv run pytest                  # 202 offline tests, a few seconds
 uv run pytest -m integration   # real Open-Meteo, Energy-Charts, aWATTar
 uv run pytest -m llm           # real LLM and embeddings (costs a little)
 ```
@@ -398,7 +408,8 @@ uv run pytest -m llm           # real LLM and embeddings (costs a little)
 | `test_evaluation.py` | Cases file, tool metrics, judge clamping and failure, runner, report and files. |
 | `test_cli.py` | Help, `seed-db` offline, clean errors without an API key (also for `chat`). |
 | `test_ui_window.py` | Default window now to now + 24 h (also across a clock change), overriding the deadline, the text for the agent. |
-| `test_app.py` | The Streamlit page rendered headless (`AppTest`): default window, deadline following the start, error without an API key. |
+| `test_app.py` | The Streamlit app rendered headless and offline (`AppTest`): welcome and example questions, default window, deadline following the start, no reset button, "New conversation" returns to the chat, planner table, prices view, error without an API key. |
+| `test_planner.py` | Devices share the solar surplus (no double counting), user order kept, a device that does not fit gets an error, chart/table rows, day windows. |
 
 How the tests stay offline and deterministic: HTTP calls are answered from recorded JSON files (**respx**) or
 refused (an `httpx.MockTransport` that raises), the LLM is a scripted fake (`GenericFakeChatModel` subclass),

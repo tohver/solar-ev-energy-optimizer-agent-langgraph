@@ -44,6 +44,8 @@ class Block:
     grid_kwh: float = 0.0
     solar_kwh: float = 0.0
     cost_eur: float = 0.0
+    # solar energy taken from each input slot (key: slot start), so a planner can subtract it
+    solar_by_slot: dict[datetime, float] = field(default_factory=dict)
 
     @property
     def average_kw(self) -> float:
@@ -69,6 +71,14 @@ class Schedule:
     def average_price(self) -> float:
         return self.cost_eur / self.energy_kwh if self.energy_kwh else 0.0
 
+    @property
+    def solar_by_slot(self) -> dict[datetime, float]:
+        used: dict[datetime, float] = {}
+        for b in self.blocks:
+            for start, kwh in b.solar_by_slot.items():
+                used[start] = used.get(start, 0.0) + kwh
+        return used
+
 
 def slot_energy_cost(
     slot: Slot, energy_kwh: float, feed_in: float, use_solar: bool
@@ -83,7 +93,7 @@ def slot_energy_cost(
     return grid * slot.grid_price + solar * feed_in, grid, solar
 
 
-def _window_slots(slots: list[Slot], earliest: datetime, deadline: datetime) -> list[Slot]:
+def clip_slots(slots: list[Slot], earliest: datetime, deadline: datetime) -> list[Slot]:
     """Slots clipped to ``[earliest, deadline)``; the first and last one may be partial."""
     clipped = []
     for s in sorted(slots, key=lambda s: s.start):
@@ -112,6 +122,8 @@ def _run_contiguous(
         block.grid_kwh += grid
         block.solar_kwh += solar
         block.cost_eur += cost
+        if solar > 0:
+            block.solar_by_slot[s.start] = block.solar_by_slot.get(s.start, 0.0) + solar
     if covered < (end - start) - timedelta(seconds=1):
         return None
     return [block]
@@ -153,6 +165,8 @@ def _fill_interruptible(
         b.grid_kwh += parts["grid"]
         b.solar_kwh += parts["solar"]
         b.cost_eur += parts["solar"] * feed_in + parts["grid"] * s.grid_price
+        if parts["solar"] > 0:
+            b.solar_by_slot[s.start] = parts["solar"]
     return blocks
 
 
@@ -170,7 +184,7 @@ def find_cheapest_schedule(
         raise ScheduleError("energy_kwh and power_kw must be positive")
     if deadline <= earliest:
         raise ScheduleError("The deadline must be after the earliest start")
-    window = _window_slots(slots, earliest, deadline)
+    window = clip_slots(slots, earliest, deadline)
     available_h = sum(s.hours for s in window)
     if available_h * power_kw < energy_kwh - 1e-6:
         raise ScheduleError(
