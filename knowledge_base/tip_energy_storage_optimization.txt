@@ -1,0 +1,19 @@
+ENERGY STORAGE OPTIMIZATION
+
+A home battery stores cheap or solar energy for use when electricity is expensive. A typical home battery stores 10-13.5 kWh with a round-trip efficiency of about 90%.
+
+Charging strategy: Charge from solar surplus first. When solar is insufficient, charge from the grid only in off-peak hours (typically 22:00-06:00) when the rate is lowest. Avoid charging during peak hours.
+
+Discharging strategy: Discharge during the evening peak (17:00-21:00) when rates are highest, which offsets the most expensive imports. Reserve 20% of capacity for backup power against outages.
+
+Price arbitrage: With time-of-use rates of for example 8 cents off-peak and 26 cents peak, each kWh cycled through the battery earns about 15 cents after efficiency losses. Cycling 10 kWh daily yields roughly 550 USD per year, so the payback of a 10,000 USD system can be 10-15 years without incentives, shorter with tax credits.
+
+Battery health: Keep the state of charge between 20% and 90% for daily use and avoid prolonged storage at 100% or 0%. Keep the battery in a temperate location (10-30C). Most batteries are warranted for 10 years or 6,000-10,000 cycles.
+
+Vehicle-to-home (V2H): An EV battery of 60-80 kWh can supply a home for 2-3 days. Use it as a flexible store: charge at midday or overnight, and discharge a limited amount during peaks if your warranty and equipment allow it.
+
+Thermal storage: Pre-heat water or pre-cool the home when energy is cheap or free. Water heaters with timers or smart controllers act as inexpensive thermal batteries (a 50-gallon tank stores about 8-10 kWh of heat).
+
+Sizing: Size storage to cover the evening peak consumption (often 5-10 kWh). Larger batteries make sense with large solar arrays, high rate spreads, or frequent outages.
+
+Monitoring: Review the state of charge, daily cycles and savings weekly. If the battery is full by noon on sunny days, shift more loads into the midday window or increase export.

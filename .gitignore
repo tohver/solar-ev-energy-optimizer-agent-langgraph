@@ -8,3 +8,41 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Secrets / API keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Generated data (recreated by 01_db_setup.ipynb and 02_rag_setup.ipynb / tools.py)
+data/energy_data.db
+data/vectorstore/
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local archive of the pre-refactoring notebooks and code (not part of the repo)
+archive/
+
+# Generated reports (curated ones are copied to docs/)
+reports/

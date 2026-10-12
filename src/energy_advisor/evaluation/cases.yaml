@@ -1,0 +1,97 @@
+# Evaluation cases for `energy-advisor eval`.
+# expected_tools: tools the agent should call; expected_response: what the LLM judge checks for.
+
+- id: ev_charging_1
+  question: When should I charge my electric car tomorrow to minimize cost and maximize solar power?
+  expected_tools:
+  - get_weather_forecast
+  - get_electricity_prices
+  expected_response: The response should contain time recommendation, cost analysis and solar consideration
+- id: ev_charging_2
+  question: I need my EV fully charged by 7am on Monday. What is the cheapest time window to charge it and how much
+    will it cost?
+  expected_tools:
+  - get_electricity_prices
+  - query_energy_usage
+  expected_response: The response should recommend an off-peak charging window ending before 7am, estimate the cost
+    in USD using the retrieved rates and the typical EV consumption from the usage history
+- id: thermostat_1
+  question: What temperature should I set my thermostat on Wednesday afternoon if electricity prices spike?
+  expected_tools:
+  - get_electricity_prices
+  - get_weather_forecast
+  - search_energy_tips
+  expected_response: The response should give a specific temperature setpoint, mention pre-cooling or setback during
+    peak hours, and cite HVAC tips from the knowledge base
+- id: thermostat_2
+  question: It is going to be warm this week. How should I run my air conditioning to keep the house comfortable
+    but keep the bill low?
+  expected_tools:
+  - get_weather_forecast
+  - get_electricity_prices
+  - search_energy_tips
+  expected_response: The response should propose a schedule for the air conditioner using forecast temperatures
+    and time-of-use rates, with specific setpoints and tips for reducing cooling cost
+- id: appliance_1
+  question: How much can I save by running my dishwasher during off-peak hours?
+  expected_tools:
+  - get_electricity_prices
+  - calculate_energy_savings
+  expected_response: The response should compare peak and off-peak rates, state the off-peak hours and calculate
+    savings per cycle and per year in USD
+- id: appliance_2
+  question: When is the best time this week to run my washing machine and dryer?
+  expected_tools:
+  - get_electricity_prices
+  - get_weather_forecast
+  expected_response: The response should recommend specific hours for the washer and dryer, based on low prices
+    and/or high solar production, and explain the reasoning
+- id: solar_1
+  question: How can I use more of my own solar power instead of exporting it to the grid? Look at my last week of
+    solar generation.
+  expected_tools:
+  - query_solar_generation
+  - search_energy_tips
+  expected_response: The response should analyze the historical solar generation (peak hours, total kWh), recommend
+    shifting flexible loads into the solar window and cite self-consumption tips
+- id: solar_2
+  question: What's the best time to run my pool pump this week based on the weather forecast?
+  expected_tools:
+  - get_weather_forecast
+  - get_electricity_prices
+  expected_response: The response should recommend specific times per day for the pool pump, combining the forecast
+    (sunny hours) and electricity prices while avoiding peak hours
+- id: history_1
+  question: Suggest three ways I can reduce energy use based on my usage history.
+  expected_tools:
+  - query_energy_usage
+  - search_energy_tips
+  expected_response: The response should give exactly three concrete suggestions grounded in the customer's historical
+    usage by device type and cite knowledge base tips
+- id: history_2
+  question: Which of my devices used the most energy in the last 7 days and what does it cost me?
+  expected_tools:
+  - query_energy_usage
+  expected_response: The response should report consumption in kWh and cost in USD per device type for the last
+    7 days and identify the largest consumer
+- id: savings_1
+  question: If I move my EV charging (about 10 kWh per day) from peak hours to off-peak hours, how much money and
+    CO2 would I save per year?
+  expected_tools:
+  - get_electricity_prices
+  - calculate_energy_savings
+  expected_response: The response should use real peak and off-peak rates, show the daily and annual savings in
+    USD and mention the CO2 impact
+- id: storage_1
+  question: I am thinking about adding a home battery. How should I charge and discharge it to save the most money?
+  expected_tools:
+  - get_electricity_prices
+  - search_energy_tips
+  expected_response: The response should recommend charging from solar or off-peak and discharging during peak hours,
+    based on the rate spread, citing storage tips from the knowledge base
+- id: seasonal_1
+  question: Give me some seasonal energy-saving tips for the upcoming winter.
+  expected_tools:
+  - search_energy_tips
+  expected_response: The response should provide winter-specific tips (thermostat setpoints, solar changes, sealing
+    drafts) taken from the knowledge base

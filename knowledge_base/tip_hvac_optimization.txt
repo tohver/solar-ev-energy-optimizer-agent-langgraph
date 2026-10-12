@@ -1,0 +1,15 @@
+HVAC OPTIMIZATION STRATEGIES
+
+Heating and cooling typically account for 40-50% of a home's energy use, so small changes to HVAC behavior produce the largest savings.
+
+Thermostat setpoints: Every degree you move the setpoint toward the outdoor temperature saves roughly 3% of HVAC energy. Recommended settings are 78F (25.5C) when cooling and 68F (20C) when heating while at home. When away or asleep, setback by 7-10F (4-5C) for up to 10% annual savings.
+
+Time-of-use pricing: When electricity prices spike during the evening peak (typically 17:00-21:00), pre-cool the house in the early afternoon when rates are lower or solar generation is high, then raise the cooling setpoint by 2-4F (1-2C) during the peak. Thermal mass in walls and furniture keeps the home comfortable for 2-3 hours. In winter, pre-heat to 70F before the peak and drop to 66F during it.
+
+Solar pre-conditioning: On sunny days, run the air conditioner between 11:00 and 15:00 to use free solar production, lowering the setpoint by 2F below normal. This stores "cold" in the building and avoids grid imports later.
+
+Maintenance: Replace or clean filters every 1-3 months; a clogged filter raises consumption by 5-15%. Schedule an annual service. Seal and insulate ducts - leaky ducts waste 20-30% of conditioned air. Keep outdoor units free of leaves and shade them where possible.
+
+Zoning and fans: Use zoned heating or cooling so unused rooms are not conditioned. Ceiling fans let you raise the cooling setpoint by about 4F at the cost of roughly 0.05 kWh per hour. Close blinds on sun-facing windows during the day in summer and open them in winter.
+
+Heat pumps: A modern heat pump delivers 3 units of heat per unit of electricity, which is 2-3 times more efficient than resistance heating. Avoid using emergency (resistance) heat except in extreme cold.

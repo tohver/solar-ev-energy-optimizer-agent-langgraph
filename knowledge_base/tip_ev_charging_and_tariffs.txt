@@ -1,0 +1,17 @@
+EV CHARGING AND TIME-OF-USE TARIFFS
+
+Electric vehicles are usually the largest flexible load in the home. A typical EV uses 10-15 kWh per day and a Level 2 charger draws 7 kW, so a full recharge takes 2-6 hours.
+
+Best times to charge: The cheapest time is overnight off-peak (typically 22:00-06:00). If you have rooftop solar, the next best time is midday on sunny days (10:00-15:00), when charging uses free solar surplus. Never charge during the evening peak (17:00-21:00) unless necessary; peak rates can be 2-3 times off-peak rates.
+
+Cost example: Charging 12 kWh at an off-peak rate of 0.08 USD/kWh costs about 0.96 USD, versus 3.12 USD at a peak rate of 0.26 USD/kWh - a saving of roughly 790 USD per year for daily charging.
+
+Scheduled charging: Set the departure time in the car or charger app and let it start automatically at the cheapest hour. Most EVs and chargers support schedules and price-based smart charging.
+
+Battery care: For daily use, charge to 80% and keep the battery above 20%. Charge to 100% only before long trips, and avoid leaving the car fully charged for days.
+
+Weather effects: Cold weather reduces range by 20-40% and increases charging needs. Pre-condition the cabin while plugged in so the energy comes from the grid or solar, not the battery.
+
+Appliances and tariffs: Time-of-use pricing applies to all flexible loads. Dishwashers, washing machines and dryers consume 1-2 kWh per cycle; running them off-peak saves about 0.10-0.15 USD per cycle compared with peak. Heat pump dryers and cold washes cut energy further.
+
+Pool pumps: A variable-speed pool pump uses 70% less energy than single-speed models. Run it at low speed for longer periods, scheduled at midday on sunny days or off-peak, and avoid the 17:00-21:00 peak.

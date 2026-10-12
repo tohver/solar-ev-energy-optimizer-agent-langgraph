@@ -1,0 +1,17 @@
+RENEWABLE ENERGY INTEGRATION AND SOLAR SELF-CONSUMPTION
+
+Using solar energy in the home is worth much more than exporting it. Exported power usually earns 3-8 cents per kWh, whereas imported power costs 12-30 cents per kWh, so every kWh self-consumed saves the retail rate.
+
+Maximize self-consumption: Shift flexible loads into the solar window, normally 10:00-16:00. Good candidates are EV charging, dishwashers, washing machines, water heaters, pool pumps and pre-cooling. Aim for a self-consumption rate above 70%.
+
+Match loads to forecasts: Use the weather forecast to estimate production. A clear day produces about 4-5 kWh per kW of installed panels; partly cloudy days produce about 60% of that, cloudy days about 30% and rainy days about 10%. On low-production days, move heavy loads to off-peak grid hours instead.
+
+EV charging with solar: Charging an EV at 7 kW for 3-4 hours at midday can absorb a 5 kW solar array's output completely. If solar is weak, charge between 23:00 and 06:00 at off-peak rates. Many chargers support solar-only or surplus charging modes.
+
+Panel performance: Panels lose 0.3-0.5% of output per degree Celsius above 25C. Keep them clean (dust and bird droppings cut output by 5-10%) and trim shading from trees. West-facing panels shift production later toward the evening peak and can be worth more under time-of-use pricing.
+
+Net metering and export limits: Understand your tariff. Under net metering, exported kWh offset imports and timing matters less; under net billing or low export rates, self-consumption is far more valuable. Check for export caps and inverter clipping.
+
+Environmental impact: Each kWh of solar replaces about 0.4 kg of CO2 from the average grid. A 6 kW system producing 9,000 kWh per year avoids roughly 3.6 tonnes of CO2 annually.
+
+Other renewables: Where available, green tariffs and community solar subscriptions add renewable supply for homes without rooftop systems.

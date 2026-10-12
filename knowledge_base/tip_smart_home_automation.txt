@@ -1,0 +1,17 @@
+SMART HOME AUTOMATION TIPS
+
+Automation turns good intentions into reliable savings. Typical smart-home setups reduce electricity bills by 10-25%.
+
+Schedules and routines: Create "away", "sleep" and "home" scenes. The away scene lowers the thermostat setback, turns off lights and puts media devices on standby power cutoff. The sleep scene reduces heating or cooling and switches off non-essential plugs.
+
+Smart plugs and standby power: Standby loads (TVs, consoles, chargers, printers) draw 5-10% of household electricity. Put them on smart plugs or power strips controlled by a schedule so they switch off overnight. A typical home saves 50-100 kWh per year per cluster of devices.
+
+Delayed starts: Schedule dishwashers, washing machines and dryers to start in off-peak hours (typically 22:00-06:00) or at midday when solar output is high. Most modern appliances support a delay-start timer; connected ones can be triggered by price or solar surplus signals.
+
+Load shifting rules: Use rules such as "run the dishwasher when solar generation exceeds 1.5 kW" or "start EV charging when the price drops below the daily average". Combine weather forecasts and tariff data to decide start times for flexible loads.
+
+Sensors and presence detection: Occupancy sensors switch lights and adjust the thermostat automatically. Window and door sensors pause HVAC when a window is open. Use geofencing to resume comfort 30-60 minutes before the household returns.
+
+Monitoring: Install a whole-home energy monitor or smart meter integration. Review weekly reports to catch always-on loads and unusual spikes (for example a failing refrigerator or a pool pump running continuously).
+
+Lighting: Replace bulbs with LEDs (75% less energy) and use dimming and motion-based control in hallways, garages and outdoors.
