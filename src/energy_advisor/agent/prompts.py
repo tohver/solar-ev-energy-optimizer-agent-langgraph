@@ -44,7 +44,7 @@ TOOLS = """
 """
 
 OPTIMIZER_TOOLS = """\
-- find_cheapest_window(energy_kwh, power_kw, deadline, earliest_start, interruptible, use_solar, device):
+- find_cheapest_window(energy_kwh, power_kw, deadline, interruptible, use_solar, device):
   the OPTIMAL schedule for a flexible load from hourly prices and the solar forecast, with cost and the saving
   versus starting immediately. Use it for every scheduling question; never work out charging hours yourself.
 - estimate_pv_generation(days): expected solar yield and surplus per day and hour (today and the next days).
@@ -65,10 +65,10 @@ DATES = """
 
 SCHEDULING_WITH_OPTIMIZER = """\
    - Scheduling a device (EV, dishwasher, washing machine, dryer, heat pump boost) or "how much can I save by
-     running X at another time": find_cheapest_window with the energy, the device power, the earliest start and
+     running X at another time": find_cheapest_window with the energy, the device power and
      the user's deadline as local time "YYYY-MM-DDTHH:MM" (EV: interruptible=true, power 11 kW; appliances:
-     interruptible=false). Pass earliest_start only if the user names one (e.g. "after dinner" = 20:00); the
-     tool's saving versus starting immediately is then the saving versus running it at that time.
+     interruptible=false). The window always starts now; the tool's saving is the saving versus starting
+     immediately.
    - Solar outlook for today and the coming days: estimate_pv_generation.
 """
 

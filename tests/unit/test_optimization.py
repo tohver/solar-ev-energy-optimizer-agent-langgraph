@@ -130,7 +130,7 @@ def tools(settings, offline_http):
 
 def test_ev_charges_overnight_before_the_deadline(tools):
     result = tools["find_cheapest_window"].invoke(
-        {"energy_kwh": 30, "power_kw": 11, "earliest_start": "2026-10-02T18:00", "deadline": "2026-10-03T07:00",
+        {"energy_kwh": 30, "power_kw": 11, "deadline": "2026-10-03T07:00",
          "use_solar": False, "device": "EV"}
     )  # fmt: skip
     blocks = result["recommended_schedule"]
@@ -142,20 +142,12 @@ def test_ev_charges_overnight_before_the_deadline(tools):
 
 def test_dishwasher_avoids_the_evening_peak(tools):
     result = tools["find_cheapest_window"].invoke(
-        {"energy_kwh": 1.0, "power_kw": 0.5, "earliest_start": "2026-10-02T17:00", "deadline": "2026-10-03T12:00",
+        {"energy_kwh": 1.0, "power_kw": 0.5, "deadline": "2026-10-03T12:00",
          "interruptible": False, "use_solar": False}
     )  # fmt: skip
     start = result["recommended_schedule"][0]["start"]
     assert "2026-10-03 01:00" <= start <= "2026-10-03 03:00"
     assert result["mode"].startswith("contiguous")
-
-
-def test_past_earliest_start_is_moved_to_now(tools):
-    result = tools["find_cheapest_window"].invoke(
-        {"energy_kwh": 5, "power_kw": 11, "earliest_start": "2026-10-01T08:00"}
-    )
-    assert result["window"]["earliest_start"] == "2026-10-02 09:30"
-    assert any("in the past" in n for n in result["notes"])
 
 
 def test_solar_forecast_is_used_offline(tools):
@@ -187,9 +179,27 @@ def test_pv_forecast_tool(tools):
 
 def test_without_deadline_the_next_24_hours_are_used_and_flagged(tools):
     result = tools["find_cheapest_window"].invoke({"energy_kwh": 10, "power_kw": 11, "use_solar": False})
-    assert result["window"]["earliest_start"] == "2026-10-02 09:30"  # now
+    assert result["window"]["start"] == "2026-10-02 09:30"  # now
     assert result["window"]["deadline"] == "2026-10-03 09:30"
     assert any("No deadline given" in n for n in result["notes"])
+
+
+def test_window_always_starts_now(tools):
+    result = tools["find_cheapest_window"].invoke(
+        {"energy_kwh": 5, "power_kw": 11, "deadline": "2026-10-04T07:00"}
+    )
+    assert result["window"] == {
+        "start": "2026-10-02 09:30",
+        "deadline": "2026-10-04 07:00",
+        "timezone": "Europe/Berlin",
+    }
+    assert "notes" not in result or not any("No deadline" in n for n in result["notes"])
+
+
+def test_deadline_in_the_past_is_an_error(tools):
+    assert "error" in tools["find_cheapest_window"].invoke(
+        {"energy_kwh": 5, "power_kw": 11, "deadline": "2026-10-01T07:00"}
+    )
 
 
 def test_window_starts_now_and_any_hour_is_allowed(tools):
@@ -203,5 +213,5 @@ def test_window_starts_now_and_any_hour_is_allowed(tools):
             "use_solar": False,
         }
     )
-    assert result["window"]["earliest_start"] == "2026-10-02 09:30"
+    assert result["window"]["start"] == "2026-10-02 09:30"
     assert "2026-10-03 01:00" <= result["recommended_schedule"][0]["start"] <= "2026-10-03 03:00"

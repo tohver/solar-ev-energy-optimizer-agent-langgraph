@@ -64,7 +64,7 @@ object and injected, so tests replace the network, the clock and the LLM with fa
 | **Realistic household history** | Generated from real past weather and real past prices: PV from irradiance, heat pump with temperature-dependent COP, EV sessions, appliance cycles. |
 | **Hybrid RAG** | Vector search + BM25, fused with Reciprocal Rank Fusion, then LLM re-ranking with a fallback. Benchmarked with hit@k and MRR. |
 | **Evaluation framework** | 15 YAML test cases, LLM-as-judge plus deterministic tool-usage metrics, Markdown/JSON reports and a heatmap. |
-| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 172 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
+| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 175 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
 
 ## Quick start
 

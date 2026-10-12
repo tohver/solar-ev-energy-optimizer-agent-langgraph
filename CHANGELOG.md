@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Scheduling always searches from now until the user's deadline, for every device. Without a deadline the agent
   plans for the next 24 hours, says so and asks by when it is needed. Removed the assumption that an EV is only
   at home from 18:00.
+- `find_cheapest_window` has a single optional time parameter, `deadline`; the window always starts now
+  (the `earliest_start` parameter and the "after dinner = 20:00" prompt rule were removed).
 
 ## [1.0.0] - 2026-10-12
 

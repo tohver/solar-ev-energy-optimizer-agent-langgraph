@@ -151,7 +151,6 @@ def build_tools(services: Services, optimizer: bool = True) -> list[BaseTool]:
         energy_kwh: float,
         power_kw: float,
         deadline: str | None = None,
-        earliest_start: str | None = None,
         interruptible: bool = True,
         use_solar: bool = True,
         device: str = "device",
@@ -170,14 +169,13 @@ def build_tools(services: Services, optimizer: bool = True) -> list[BaseTool]:
                 dryer about 0.6; heat pump boost about 2.
             deadline: Local time "YYYY-MM-DDTHH:MM" by which it must be finished, as given by the user
                 (empty = 24 hours from now).
-            earliest_start: Only if the USER names a later start, e.g. "after dinner" (default: now).
             interruptible: True if it may pause (EV charging); False if it must run in one go (appliances).
             use_solar: Consider own solar surplus (valued at the feed-in tariff).
             device: Name for the output, e.g. "EV".
         """
         try:
             return services.optimizer.cheapest_window(
-                energy_kwh, power_kw, deadline, earliest_start, interruptible, use_solar, device
+                energy_kwh, power_kw, deadline, interruptible, use_solar, device
             )
         except (InvalidDateError, ScheduleError) as exc:
             return {"error": str(exc)}

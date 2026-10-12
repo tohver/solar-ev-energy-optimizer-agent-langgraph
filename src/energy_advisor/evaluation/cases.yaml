@@ -35,12 +35,13 @@
   expected_response: 'Advice based on the forecast temperatures: setpoints in degrees Celsius, lower flow temperature,
     avoiding the electric backup heater, using cheap/sunny hours, with tips cited from the knowledge base.'
 - id: appliance_1
-  question: How much can I save by running my dishwasher in the cheapest hours instead of right after dinner?
+  question: My dishwasher needs about 1 kWh. How much can I save by running it in the cheapest hours before 18:00
+    tomorrow instead of starting it right now?
   expected_tools:
   - find_cheapest_window
   - search_energy_tips
-  expected_response: Compares the evening price with the cheapest hours (EUR/kWh), names those hours, and calculates
-    the saving per cycle and per year in EUR with calculate_energy_savings.
+  expected_response: Gives the cheapest start time before the deadline from the scheduling tool, its cost and the
+    saving per cycle in EUR versus starting now, and extrapolates the saving per year.
 - id: appliance_2
   question: When is the best time this week to run my washing machine and dryer?
   expected_tools:

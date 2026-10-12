@@ -55,7 +55,7 @@ that exercise each feature:
 |---|---|---|
 | Optimal charging window | "I need my EV charged with 30 kWh by 7:00 tomorrow. When should I charge it?" | `find_cheapest_window` |
 | No deadline given | "When should I charge my EV with 20 kWh?" (plans for the next 24 h and asks you by when) | `find_cheapest_window` |
-| Appliance scheduling | "How much can I save by running the dishwasher in the cheapest hours instead of after dinner?" | `find_cheapest_window` |
+| Appliance scheduling | "My dishwasher needs 1 kWh. How much can I save by running it in the cheapest hours before 18:00 tomorrow instead of now?" | `find_cheapest_window` |
 | Real electricity prices | "What will electricity cost tomorrow at 19:00?" | `get_electricity_prices` |
 | Solar outlook | "Which of the next three days is best for charging from solar?" | `estimate_pv_generation` |
 | Weather | "Will it be sunny tomorrow afternoon?" | `get_weather_forecast` |
@@ -123,7 +123,7 @@ Example: *"I need my EV charged with 30 kWh by 7:00 tomorrow."*
    location. It then runs the LangGraph loop.
 3. **LLM decides** to call `find_cheapest_window(energy_kwh=30, power_kw=11, deadline="2026-10-13T07:00")`.
 4. **Tool** (`agent/tools.py`) forwards to `optimization/service.py: OptimizerService.cheapest_window`:
-   - window = from now (rounded up to the next quarter hour) to the deadline;
+   - window = from now (rounded up to the next quarter hour) to the deadline, or 24 hours if none was given;
    - prices for the window from `PriceService.curve` (Energy-Charts → aWATTar → estimate → synthetic, cached);
    - solar surplus per hour from the weather forecast (PV yield minus household base load);
    - `optimization/scheduling.py: find_cheapest_schedule` picks the cheapest slots.
@@ -162,7 +162,7 @@ are grouped by how much they affect results. Each item says where it lives and h
 
 | # | Assumption | Value | Where | Notes |
 |---|---|---|---|---|
-| O1 | Window | from **now** (rounded up to the next 15 minutes) until the user's deadline; a start time is used only if the user names one | `optimization/service.py: cheapest_window` | No assumptions about where the car is or when a device may run. |
+| O1 | Window | always from **now** (rounded up to the next 15 minutes) until the user's deadline; `deadline` is the only time parameter | `optimization/service.py: cheapest_window` | No assumptions about where the car is or when a device may run. |
 | O2 | No deadline given | next **24 hours**, flagged in the output; the agent asks by when | `DEFAULT_WINDOW_HOURS` | |
 | O3 | Maximum window | 7 days | `MAX_WINDOW` | Beyond tomorrow, prices are estimates. |
 | O4 | EV charging power can be modulated continuously between 0 and 11 kW | – | `scheduling.py: _fill_interruptible` | Real wallboxes have a minimum (about 1.4 kW single-phase, 4.1 kW three-phase). A partly used slot is reported as a lower average power. |
@@ -266,7 +266,7 @@ so it is tested without an LLM.
 | File | What it does | How / why |
 |---|---|---|
 | `scheduling.py` | `find_cheapest_schedule(slots, energy, power, earliest, deadline, feed_in, interruptible, use_solar)` returns a `Schedule` of `Block`s with cost, solar share and the baseline cost | **Plain Python, no LLM and no pandas**, because the result must be deterministic, exact and unit-testable. *Contiguous* loads: every possible start time is evaluated (`_run_contiguous`), the cheapest wins. *Interruptible* loads: each slot offers a "solar" chunk (priced at the feed-in tariff) and a "grid" chunk (priced at the retail price); the cheapest chunks are filled first (`_fill_interruptible`). This greedy approach is optimal because cost is linear in energy. `slot_energy_cost` takes solar first unless grid power is cheaper (deeply negative prices). |
-| `service.py` | `OptimizerService.cheapest_window` (tool backend): builds the window, fetches the price curve and the solar surplus, calls the scheduler, formats the output in local time; `pv_forecast` (tool backend for `estimate_pv_generation`); `solar_surplus` | Connects the pure scheduler to the services. Window rules: start = now (or a later user-given start), deadline = user's or now + 24 h (flagged), maximum 7 days. |
+| `service.py` | `OptimizerService.cheapest_window` (tool backend): builds the window, fetches the price curve and the solar surplus, calls the scheduler, formats the output in local time; `pv_forecast` (tool backend for `estimate_pv_generation`); `solar_surplus` | Connects the pure scheduler to the services. Window rules: start = now, deadline = the user's or now + 24 h (flagged), maximum 7 days. |
 
 ### `services/`: business logic around the data
 
@@ -353,7 +353,7 @@ so it is tested without an LLM.
 ## 5. Tests
 
 ```bash
-uv run pytest                  # 174 offline tests, a few seconds
+uv run pytest                  # 175 offline tests, a few seconds
 uv run pytest -m integration   # real Open-Meteo, Energy-Charts, aWATTar
 uv run pytest -m llm           # real LLM and embeddings (costs a little)
 ```
