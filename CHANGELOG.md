@@ -3,6 +3,13 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Scheduling always searches from now until the user's deadline, for every device. Without a deadline the agent
+  plans for the next 24 hours, says so and asks by when it is needed. Removed the assumption that an EV is only
+  at home from 18:00.
+
 ## [1.0.0] - 2026-10-12
 
 ### Added

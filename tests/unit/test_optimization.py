@@ -183,3 +183,25 @@ def test_pv_forecast_tool(tools):
     today = result["days"]["2026-10-02"]
     assert today["pv_kwh"] >= today["surplus_kwh"] >= 0
     assert all(h["pv_kwh"] > 0 for h in today["hourly"])
+
+
+def test_without_deadline_the_next_24_hours_are_used_and_flagged(tools):
+    result = tools["find_cheapest_window"].invoke({"energy_kwh": 10, "power_kw": 11, "use_solar": False})
+    assert result["window"]["earliest_start"] == "2026-10-02 09:30"  # now
+    assert result["window"]["deadline"] == "2026-10-03 09:30"
+    assert any("No deadline given" in n for n in result["notes"])
+
+
+def test_window_starts_now_and_any_hour_is_allowed(tools):
+    # a washing machine may run at night: no quiet hours are assumed
+    result = tools["find_cheapest_window"].invoke(
+        {
+            "energy_kwh": 0.8,
+            "power_kw": 0.4,
+            "deadline": "2026-10-03T09:00",
+            "interruptible": False,
+            "use_solar": False,
+        }
+    )
+    assert result["window"]["earliest_start"] == "2026-10-02 09:30"
+    assert "2026-10-03 01:00" <= result["recommended_schedule"][0]["start"] <= "2026-10-03 03:00"

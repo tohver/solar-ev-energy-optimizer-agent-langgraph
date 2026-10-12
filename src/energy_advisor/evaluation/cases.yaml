@@ -7,9 +7,9 @@
   expected_tools:
   - find_cheapest_window
   - search_energy_tips
-  expected_response: Concrete charging hours for tomorrow (local time) that combine the solar forecast and the hourly
-    prices, the price in EUR/kWh of the chosen hours, an estimated cost or saving in EUR, and a note if prices are
-    an estimate.
+  expected_response: Says that no deadline was given and that it planned for the next 24 hours, asks by when the
+    car is needed, and gives the charging hours from now (local time) with their cost in EUR, combining solar and
+    prices; notes if prices are an estimate.
 - id: ev_charging_2
   question: I need my EV charged with 30 kWh by 7:00 next Monday morning. What is the cheapest window and what will
     it cost?

@@ -16,6 +16,8 @@ from energy_advisor.timeutils import Clock, floor_hour, parse_local_datetime, to
 
 logger = logging.getLogger(__name__)
 MAX_WINDOW = timedelta(days=7)
+DEFAULT_WINDOW_HOURS = 24
+DEFAULT_WINDOW = timedelta(hours=DEFAULT_WINDOW_HOURS)
 QUARTER = timedelta(minutes=15)
 
 
@@ -82,12 +84,16 @@ class OptimizerService:
         self,
         energy_kwh: float,
         power_kw: float,
-        earliest_start: str | None = None,
         deadline: str | None = None,
+        earliest_start: str | None = None,
         interruptible: bool = True,
         use_solar: bool = True,
         device: str = "device",
     ) -> dict[str, Any]:
+        """Cheapest schedule between now (or a later start the user named) and the user's deadline.
+
+        Without a deadline the window is the next 24 hours from now, and the output says so.
+        """
         notes = []
         now = self._clock()
         earliest = parse_local_datetime(earliest_start, self._tz) if earliest_start else now
@@ -95,9 +101,14 @@ class OptimizerService:
             notes.append(f"The earliest start {earliest:%Y-%m-%d %H:%M} is in the past; planning from now.")
             earliest = now
         earliest = _ceil_quarter(to_utc(earliest))
-        latest = (
-            to_utc(parse_local_datetime(deadline, self._tz)) if deadline else earliest + timedelta(hours=24)
-        )
+        if deadline:
+            latest = to_utc(parse_local_datetime(deadline, self._tz))
+        else:
+            latest = _ceil_quarter(to_utc(now)) + DEFAULT_WINDOW
+            notes.append(
+                f"No deadline given: assumed {DEFAULT_WINDOW_HOURS} hours from now "
+                f"({latest.astimezone(self._tz):%Y-%m-%d %H:%M}). Ask the user whether that is right."
+            )
         if latest - earliest > MAX_WINDOW:
             raise ScheduleError("The window can be at most 7 days long.")
         if latest <= earliest:
