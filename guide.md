@@ -367,6 +367,7 @@ so it is tested without an LLM.
 | File | What it does | How / why |
 |---|---|---|
 | `ui/planner.py` | `result_markdown` (the result screen: slot table, cost analysis, solar contribution per device), `hourly_rows`, `window_bars`, `summary_rows`, `day_window` | Turns a `DevicePlan` into the result screen and chart rows; pure functions, unit-tested. |
+| `ui/charts.py` | `plan_chart` (three stacked panels on one time axis: when the devices run, electricity price, solar surplus; each with a title and a legend), `price_panel`, `solar_panel`, `styled` | **Altair**; colours and monospace font of the README terminal screen; no overlays, so each element is readable on its own. |
 | `ui/window.py` | `SchedulingWindow`, `default_window` (now to now + 24 h), `default_deadline`, `window_from_inputs`, `window_context` (text for the agent) | Pure functions so the page stays thin and the rules are unit-tested; 24 hours are real hours (also across a clock change). |
 | `app/streamlit_app.py` | Sidebar with all settings (From, Deadline, devices, OK, New conversation); views Best times (result screen + chart), Chat (example questions, tool calls per answer), Prices & solar | `st.cache_data` keeps a computed plan for 15 minutes per window and device set, so switching views does not refetch. | **Altair** charts (bundled with Streamlit): planner = price line, solar bars and device bands on top, a device timeline below with a shared time axis. `st.segmented_control` switches views, `st.pills` selects devices. | **Streamlit** (`st.chat_message`, `st.chat_input`, `st.session_state`, `st.cache_resource` for one agent per server process). Outside the package because it is an application, not library code; installed with the `app` extra. |
 
@@ -386,6 +387,7 @@ so it is tested without an LLM.
 | `data/` (git-ignored) | `energy_data.db`, `vectorstore/`, `price_cache.sqlite`. |
 | `reports/` (git-ignored) | Output of `eval` and `report`. |
 | `.github/workflows/ci.yml` | GitHub Actions: lock check, ruff, format, mypy, tests with coverage ≥ 85 %. |
+| `.streamlit/config.toml` | Theme of the web app: dark background `#292929`, text `#c5c8c6`, green accents, monospace font (the palette of `docs/img/ask-demo.svg`). |
 | `.pre-commit-config.yaml` | Hooks before every commit: whitespace, YAML/TOML checks, large files, private keys, ruff, mypy, gitleaks (secret scanner). |
 | `PLAN.md` / `CHANGELOG.md` | Development plan with implementation notes per phase / release history. |
 
@@ -394,7 +396,7 @@ so it is tested without an LLM.
 ## 5. Tests
 
 ```bash
-uv run pytest                  # 202 offline tests, a few seconds
+uv run pytest                  # 203 offline tests, a few seconds
 uv run pytest -m integration   # real Open-Meteo, Energy-Charts, aWATTar
 uv run pytest -m llm           # real LLM and embeddings (costs a little)
 ```

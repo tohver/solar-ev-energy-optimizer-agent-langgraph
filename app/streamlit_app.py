@@ -18,6 +18,7 @@ from energy_advisor.agent.trace import final_answer, tool_calls
 from energy_advisor.config import MissingApiKeyError, Settings, get_settings
 from energy_advisor.optimization.service import DEVICE_PRESETS, DevicePlan, DeviceSpec
 from energy_advisor.services.container import Services, build_services
+from energy_advisor.ui.charts import BLUE, GREEN, OLIVE, PURPLE, plan_chart, price_panel, solar_panel, styled
 from energy_advisor.ui.planner import hourly_rows, result_markdown, window_bars
 from energy_advisor.ui.window import (
     InvalidWindowError,
@@ -32,7 +33,15 @@ st.set_page_config(page_title="Solar & EV Energy Advisor", page_icon="⚡", layo
 
 VIEWS = ["📅 Best times", "💬 Chat", "📈 Prices & solar"]
 DEVICE_ICONS = {"ev": "🚗", "dishwasher": "🍽️", "washing_machine": "🧺"}
-DEVICE_COLORS = {"Electric car": "#2a78d6", "Dishwasher": "#1baf7a", "Washing machine": "#eb6834"}
+CSS = f"""
+<style>
+h1, h2, h3, h4 {{ color: {BLUE} !important; }}
+.st-key-result {{ border: 1px solid {GREEN}; border-radius: 8px; padding: 1rem 1.4rem 0.6rem; }}
+.st-key-result strong {{ color: {OLIVE}; }}
+.st-key-result th {{ color: {BLUE}; }}
+.st-key-result blockquote {{ border-left-color: {PURPLE}; }}
+</style>
+"""
 SUGGESTIONS = [
     "When should I charge my EV with 20 kWh?",
     "What will electricity cost tomorrow at 19:00?",
@@ -169,57 +178,9 @@ with st.sidebar:
 
 
 # ----------------------------------------------------------------------------- main area
+st.markdown(CSS, unsafe_allow_html=True)
 st.title("⚡ Solar & EV Energy Advisor")
 view = st.segmented_control("View", VIEWS, key="view", label_visibility="collapsed") or VIEWS[0]
-
-
-def plan_chart(hours: pd.DataFrame, bars: pd.DataFrame) -> alt.VConcatChart:
-    x_scale = alt.Scale(domain=[hours["time"].min(), hours["time"].max() + timedelta(hours=1)])
-    x = alt.X("time:T", title=None, scale=x_scale, axis=alt.Axis(format="%a %H:%M"))
-    colors = alt.Scale(domain=list(DEVICE_COLORS), range=list(DEVICE_COLORS.values()))
-    bands = (
-        alt.Chart(bars)
-        .mark_rect(opacity=0.18)
-        .encode(
-            x=alt.X("start:T", scale=x_scale),
-            x2="end:T",
-            color=alt.Color("device:N", scale=colors, legend=None),
-        )
-    )
-    price = (
-        alt.Chart(hours)
-        .mark_line(interpolate="step-after", color="#52514e", strokeWidth=2)
-        .encode(
-            x=x,
-            y=alt.Y("price:Q", title="Price (EUR/kWh)", scale=alt.Scale(zero=False)),
-            tooltip=[alt.Tooltip("time:T", format="%a %H:%M"), alt.Tooltip("price:Q", format=".3f")],
-        )
-    )
-    solar = (
-        alt.Chart(hours)
-        .mark_bar(color="#eda100", opacity=0.45)
-        .encode(x=x, y=alt.Y("solar_kwh:Q", title="Solar surplus (kWh)"))
-    )
-    top = alt.layer(bands, solar, price).resolve_scale(y="independent").properties(height=230)
-    timeline = (
-        alt.Chart(bars)
-        .mark_bar(cornerRadius=4, height=22)
-        .encode(
-            x=alt.X("start:T", title="Local time", scale=x_scale, axis=alt.Axis(format="%a %H:%M")),
-            x2="end:T",
-            y=alt.Y("device:N", title=None, sort=list(DEVICE_COLORS)),
-            color=alt.Color("device:N", scale=colors, legend=alt.Legend(title=None, orient="top")),
-            tooltip=[
-                "device:N",
-                alt.Tooltip("start:T", format="%a %H:%M"),
-                alt.Tooltip("end:T", format="%a %H:%M"),
-                alt.Tooltip("kwh:Q", title="kWh"),
-                alt.Tooltip("cost_eur:Q", title="cost (EUR)"),
-            ],
-        )
-        .properties(height=46 * max(1, bars["device"].nunique()))
-    )
-    return alt.vconcat(top, timeline).resolve_scale(x="shared")
 
 
 def render_best_times() -> None:
@@ -233,14 +194,12 @@ def render_best_times() -> None:
     except Exception as exc:
         st.error(f"Could not plan: {exc}")
         return
-    st.markdown(result_markdown(plan, tz, settings.tariff.feed_in_tariff_eur_per_kwh))
+    with st.container(key="result"):
+        st.markdown("#### Result")
+        st.markdown(result_markdown(plan, tz, settings.tariff.feed_in_tariff_eur_per_kwh))
     bars = pd.DataFrame(window_bars(plan, tz))
     if not bars.empty:
-        st.divider()
         st.altair_chart(plan_chart(pd.DataFrame(hourly_rows(plan, tz)), bars), width="stretch")
-        st.caption(
-            "Coloured bars: when each device runs. Grey line: electricity price. Yellow bars: expected solar surplus."
-        )
 
 
 def render_chat() -> None:
@@ -277,16 +236,6 @@ def render_chat() -> None:
     state.chat.append({"role": "assistant", "content": answer, "tools": calls})
 
 
-def hour_chart(data: pd.DataFrame, column: str, title: str, mark: str, color: str) -> alt.Chart:
-    base = alt.Chart(data).encode(
-        x=alt.X("label:N", sort=None, title="Local time", axis=alt.Axis(labelAngle=-45)),
-        y=alt.Y(f"{column}:Q", title=title, scale=alt.Scale(zero=mark == "bar")),
-        tooltip=["label:N", alt.Tooltip(f"{column}:Q", format=".3f")],
-    )
-    chart = base.mark_bar(color=color) if mark == "bar" else base.mark_line(color=color, point=True)
-    return chart.properties(height=260)
-
-
 def render_prices() -> None:
     if window is None:
         st.info("Choose a deadline after the start on the left.")
@@ -297,17 +246,15 @@ def render_prices() -> None:
         st.error(f"Could not load data: {exc}")
         return
     data = pd.DataFrame(hourly_rows(plan, tz))
-    data["label"] = data["time"].map(lambda t: t.strftime("%a %H:%M"))
+    x = alt.X("time:T", title=None, axis=alt.Axis(format="%a %H:%M", labelAngle=0))
     left, right = st.columns(2)
     with left:
-        st.markdown("**Electricity price per hour**")
-        st.altair_chart(hour_chart(data, "price", "EUR per kWh", "line", "#2a78d6"), width="stretch")
+        st.altair_chart(styled(price_panel(data, x, height=260)), width="stretch")
         st.caption(
             f"What one kWh from the grid costs (incl. fees and VAT). Source: {plan.window.curve.source}."
         )
     with right:
-        st.markdown("**Solar surplus per hour**")
-        st.altair_chart(hour_chart(data, "solar_kwh", "kWh in that hour", "bar", "#eda100"), width="stretch")
+        st.altair_chart(styled(solar_panel(data, x, height=260)), width="stretch")
         st.caption("PV energy expected beyond the house's own base load: free for the car or appliances.")
 
 

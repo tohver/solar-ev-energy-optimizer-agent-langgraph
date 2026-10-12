@@ -91,3 +91,18 @@ def test_a_later_day_means_that_whole_day():
 def test_past_or_far_days_are_rejected(day):
     with pytest.raises(InvalidWindowError):
         day_window(day, NOW)
+
+
+def test_chart_has_three_titled_panels_with_legends(optimizer):
+    import pandas as pd
+
+    from energy_advisor.ui.charts import plan_chart
+
+    plan = optimizer.plan_devices([EV, DISHWASHER])
+    spec = plan_chart(
+        pd.DataFrame(hourly_rows(plan, BERLIN)), pd.DataFrame(window_bars(plan, BERLIN))
+    ).to_dict()
+    titles = [panel["title"] for panel in spec["vconcat"]]
+    assert titles == ["When your devices run", "Electricity price", "Solar surplus"]
+    assert all("legend" in panel["encoding"]["color"] for panel in spec["vconcat"])
+    assert spec["resolve"]["scale"]["x"] == "shared"

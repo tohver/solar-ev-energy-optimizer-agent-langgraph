@@ -91,6 +91,7 @@ def test_ok_shows_the_result_screen(app_env):
     assert "| Time slot | Energy (kWh) | From solar (kWh) | From grid (kWh) | Cost (EUR) |" in screen
     assert "Cost analysis" in screen
     assert "Saving:" in screen
+    assert len(at.get("vega_lite_chart")) == 1  # runs, price and solar as stacked panels of one chart
 
 
 def test_chat_view_shows_welcome_and_example_questions(app_env):
@@ -111,7 +112,7 @@ def test_new_conversation_returns_to_the_chat(app_env):
 def test_prices_view_renders_without_a_button(app_env):
     at = _app("📈 Prices & solar")
     assert not at.exception
-    assert any("Electricity price" in m.value for m in at.markdown)
+    assert len(at.get("vega_lite_chart")) == 2  # price and solar panels
     assert not [b for b in at.main.button if b.label == "Show"]
 
 

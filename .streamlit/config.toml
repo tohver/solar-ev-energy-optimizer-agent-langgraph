@@ -1,0 +1,11 @@
+# Look of the web app: the same palette as the terminal screen in the README (docs/img/ask-demo.svg).
+[theme]
+base = "dark"
+backgroundColor = "#292929"
+secondaryBackgroundColor = "#1f1f1f"
+textColor = "#c5c8c6"
+primaryColor = "#00823d"
+font = "monospace"
+
+[browser]
+gatherUsageStats = false
