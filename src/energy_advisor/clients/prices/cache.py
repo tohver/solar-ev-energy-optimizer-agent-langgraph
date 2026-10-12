@@ -35,12 +35,13 @@ class CachedPriceProvider:
         self.name = inner.name
         self.is_estimate = inner.is_estimate
         self.attribution = inner.attribution
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(self._connect()) as con, con:
-            con.execute(SCHEMA)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        # the schema is ensured on every connection, so a deleted cache file is simply rebuilt
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        con = sqlite3.connect(self._path)
+        con.execute(SCHEMA)
+        return con
 
     def cached(self, start: datetime, end: datetime) -> list[SpotPrice]:
         with closing(self._connect()) as con:

@@ -19,6 +19,7 @@ wheels/
 # Generated data (recreated by 01_db_setup.ipynb and 02_rag_setup.ipynb / tools.py)
 data/energy_data.db
 data/vectorstore/
+data/*.sqlite
 *.sqlite3
 
 # Jupyter

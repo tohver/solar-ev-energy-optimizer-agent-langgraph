@@ -99,6 +99,14 @@ def test_cache_survives_a_new_instance_and_fetches_missing_days(tmp_path):
     assert inner.calls == 1
 
 
+def test_cache_recovers_when_its_file_is_deleted(tmp_path):
+    path = tmp_path / "cache.sqlite"
+    cached = CachedPriceProvider(StaticPriceProvider(), path)
+    cached.fetch(START, END)
+    path.unlink()
+    assert len(cached.fetch(START, END)) == 24
+
+
 def test_cache_does_not_store_failures(tmp_path):
     cached = CachedPriceProvider(StaticPriceProvider(fail=True), tmp_path / "cache.sqlite")
     with pytest.raises(PriceUnavailableError):
