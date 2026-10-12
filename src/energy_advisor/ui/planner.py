@@ -1,5 +1,6 @@
 """Data for the app's planner view: the window of a chosen day and the rows for its chart and table."""
 
+import math
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -7,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from energy_advisor.optimization.service import DevicePlan
 from energy_advisor.timeutils import floor_hour, to_utc
-from energy_advisor.ui.window import InvalidWindowError, SchedulingWindow, default_deadline
+from energy_advisor.ui.window import InvalidWindowError, SchedulingWindow, default_window
 
 MAX_DAYS_AHEAD = 6
 
@@ -23,9 +24,7 @@ def day_window(day: date, now: datetime) -> SchedulingWindow:
     if day > today + timedelta(days=MAX_DAYS_AHEAD):
         raise InvalidWindowError(f"Choose a day within the next {MAX_DAYS_AHEAD} days.")
     if day == today:
-        rounded = now.replace(second=0, microsecond=0)
-        start = rounded + timedelta(minutes=(-rounded.minute) % 15)  # next quarter hour, like the optimizer
-        return SchedulingWindow(start, default_deadline(start))
+        return default_window(now)
     start = datetime.combine(day, time.min, tzinfo=tz)
     return SchedulingWindow(start, datetime.combine(day + timedelta(days=1), time.min, tzinfo=tz))
 
@@ -102,3 +101,57 @@ def summary_rows(plan: DevicePlan, tz: ZoneInfo) -> list[dict[str, Any]]:
 def window_label(plan: DevicePlan, tz: ZoneInfo) -> str:
     w = plan.window
     return f"{w.earliest.astimezone(tz):%a %d %b %H:%M} - {to_utc(w.latest).astimezone(tz):%a %d %b %H:%M}"
+
+
+def result_markdown(plan: DevicePlan, tz: ZoneInfo, feed_in_eur_per_kwh: float) -> str:
+    """The result screen: per device the schedule table, the cost analysis and the solar contribution."""
+    fmt = "%a %d %b %H:%M"
+    start = plan.window.earliest.astimezone(tz)
+    deadline = to_utc(plan.window.latest).astimezone(tz)
+    parts = [f"**Window:** {start:{fmt}} - {deadline:{fmt}}"]
+    if plan.window.curve.is_estimate:
+        parts.append(
+            "> ⚠️ Some prices in this window are **estimates**: day-ahead prices for the next day are published "
+            "around 13:00."
+        )
+    for result in plan.results:
+        device = result.device
+        title = f"### {device.name}: {device.energy_kwh:g} kWh"
+        if result.schedule is None:
+            parts += [title, f"Not possible in this window: {result.error}"]
+            continue
+        s = result.schedule
+        rows = [
+            "| Time slot | Energy (kWh) | From solar (kWh) | From grid (kWh) | Cost (EUR) |",
+            "|---|---:|---:|---:|---:|",
+            *[
+                f"| {b.start.astimezone(tz):%a %H:%M} - {b.end.astimezone(tz):%H:%M} | {b.energy_kwh:.2f} | "
+                f"{b.solar_kwh:.2f} | {b.grid_kwh:.2f} | {b.cost_eur:.2f} |"
+                for b in s.blocks
+            ],
+            f"| **Total** | **{s.energy_kwh:.2f}** | **{s.solar_kwh:.2f}** | **{s.grid_kwh:.2f}** | **{s.cost_eur:.2f}** |",
+        ]
+        analysis = [
+            "**Cost analysis**",
+            "",
+            f"- Total cost: **{s.cost_eur:.2f} EUR** (average {s.average_price:.3f} EUR/kWh)",
+        ]
+        if math.isnan(s.baseline_cost_eur):
+            analysis.append(f"- Starting immediately ({start:%a %H:%M}) is not possible within the window")
+        else:
+            analysis += [
+                f"- Starting immediately ({start:%a %H:%M}) would cost {s.baseline_cost_eur:.2f} EUR",
+                f"- **Saving: {s.savings_eur:.2f} EUR**",
+            ]
+        if s.solar_kwh > 0:
+            solar = (
+                f"**Solar:** {s.solar_kwh:.1f} kWh come from your PV system. They are valued at the feed-in tariff "
+                f"({feed_in_eur_per_kwh:.3f} EUR/kWh) that you would otherwise receive for exporting them."
+            )
+        else:
+            solar = (
+                "**Solar:** no solar surplus is used: none is expected in these hours, or the devices planned "
+                "before this one (largest first) already use it."
+            )
+        parts += [title, "\n".join(rows), "\n".join(analysis), solar]
+    return "\n\n".join(parts)

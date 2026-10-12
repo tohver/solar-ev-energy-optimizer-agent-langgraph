@@ -34,7 +34,9 @@ def default_deadline(start: datetime) -> datetime:
 
 
 def default_window(now: datetime) -> SchedulingWindow:
-    start = now.replace(second=0, microsecond=0)
+    """From now (rounded up to the next quarter hour, like the optimizer) for 24 hours."""
+    rounded = now.replace(second=0, microsecond=0)
+    start = rounded + timedelta(minutes=(-rounded.minute) % 15)
     return SchedulingWindow(start, default_deadline(start))
 
 

@@ -10,8 +10,8 @@ from tests.helpers import BERLIN
 
 def test_default_window_is_now_plus_24_hours():
     window = default_window(datetime(2026, 10, 12, 18, 37, 12, tzinfo=BERLIN))
-    assert window.start == datetime(2026, 10, 12, 18, 37, tzinfo=BERLIN)
-    assert window.deadline == datetime(2026, 10, 13, 18, 37, tzinfo=BERLIN)
+    assert window.start == datetime(2026, 10, 12, 18, 45, tzinfo=BERLIN)  # next quarter hour
+    assert window.deadline == datetime(2026, 10, 13, 18, 45, tzinfo=BERLIN)
     assert window.hours == 24
 
 

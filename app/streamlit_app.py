@@ -1,4 +1,7 @@
-"""Streamlit app for the energy advisor: chat, day planner for devices, prices and solar.
+"""Streamlit app for the energy advisor.
+
+All settings live in the sidebar: the time window (From, Deadline) and the devices. OK computes the best
+times and shows the result screen. The chat and the prices & solar view use the same window.
 
 Run with:  uv run --extra app streamlit run app/streamlit_app.py
 """
@@ -13,16 +16,9 @@ import streamlit as st
 from energy_advisor.agent.graph import EnergyAdvisor
 from energy_advisor.agent.trace import final_answer, tool_calls
 from energy_advisor.config import MissingApiKeyError, Settings, get_settings
-from energy_advisor.optimization.service import DEVICE_PRESETS, DeviceSpec
+from energy_advisor.optimization.service import DEVICE_PRESETS, DevicePlan, DeviceSpec
 from energy_advisor.services.container import Services, build_services
-from energy_advisor.ui.planner import (
-    MAX_DAYS_AHEAD,
-    day_window,
-    hourly_rows,
-    summary_rows,
-    window_bars,
-    window_label,
-)
+from energy_advisor.ui.planner import hourly_rows, result_markdown, window_bars
 from energy_advisor.ui.window import (
     InvalidWindowError,
     SchedulingWindow,
@@ -34,7 +30,7 @@ from energy_advisor.ui.window import (
 
 st.set_page_config(page_title="Solar & EV Energy Advisor", page_icon="⚡", layout="wide")
 
-VIEWS = ["💬 Chat", "📅 Planner", "📈 Prices & solar"]
+VIEWS = ["📅 Best times", "💬 Chat", "📈 Prices & solar"]
 DEVICE_ICONS = {"ev": "🚗", "dishwasher": "🍽️", "washing_machine": "🧺"}
 DEVICE_COLORS = {"Electric car": "#2a78d6", "Dishwasher": "#1baf7a", "Washing machine": "#eb6834"}
 SUGGESTIONS = [
@@ -76,16 +72,26 @@ def now() -> datetime:
     return services.clock().astimezone(tz)
 
 
+@st.cache_data(ttl=900, show_spinner="Checking prices and the solar forecast...")
+def plan_for(
+    start_iso: str, deadline_iso: str, devices: tuple[DeviceSpec, ...], _services: Services
+) -> DevicePlan:
+    """Cached for 15 minutes per window and device set, so switching views does not refetch."""
+    return _services.optimizer.plan_devices(
+        list(devices), datetime.fromisoformat(start_iso), datetime.fromisoformat(deadline_iso)
+    )
+
+
 # ----------------------------------------------------------------------------- callbacks
 def new_conversation() -> None:
     state.thread_id = advisor.new_thread_id()
     state.chat = []
-    state.view = VIEWS[0]
+    state.view = VIEWS[1]
 
 
 def ask(question: str) -> None:
     state.pending = question
-    state.view = VIEWS[0]
+    state.view = VIEWS[1]
 
 
 def start_changed() -> None:
@@ -99,6 +105,23 @@ def deadline_changed() -> None:
     state.deadline_overridden = True
 
 
+def selected_devices() -> tuple[DeviceSpec, ...]:
+    devices = []
+    for key in state.get("devices") or []:
+        preset = DEVICE_PRESETS[key]
+        if key == "ev":
+            preset = DeviceSpec(
+                preset.key, preset.name, float(state.ev_kwh), preset.power_kw, preset.interruptible
+            )
+        devices.append(preset)
+    return tuple(devices)
+
+
+def submit() -> None:
+    state.submitted = (state.window_iso, selected_devices())
+    state.view = VIEWS[0]
+
+
 if "from_date" not in state:
     initial = default_window(now())
     state.from_date, state.from_time = initial.start.date(), initial.start.time()
@@ -106,67 +129,48 @@ if "from_date" not in state:
     state.deadline_overridden = False
 
 
-# ----------------------------------------------------------------------------- sidebar
+# ----------------------------------------------------------------------------- sidebar: the only settings
 with st.sidebar:
-    st.button("✏️ New conversation", on_click=new_conversation, width="stretch")
-    st.divider()
-    st.subheader("Time window for chat questions")
-    st.caption("Used when you ask *when* to run or charge something. From = now, deadline = 24 hours later.")
     c1, c2 = st.columns(2)
     c1.date_input("From", key="from_date", on_change=start_changed)
     c2.time_input("at", key="from_time", step=timedelta(minutes=15), on_change=start_changed)
     c3, c4 = st.columns(2)
     c3.date_input("Deadline", key="to_date", on_change=deadline_changed)
     c4.time_input("at ", key="to_time", step=timedelta(minutes=15), on_change=deadline_changed)
-    use_window = st.toggle("Use this window in my questions", value=True, key="use_window")
-    chat_window: SchedulingWindow | None
+    window: SchedulingWindow | None
     try:
-        chat_window = window_from_inputs(state.from_date, state.from_time, state.to_date, state.to_time, tz)
-        st.caption(f"{chat_window.hours:.1f} hours, local time ({tz.key})")
+        window = window_from_inputs(state.from_date, state.from_time, state.to_date, state.to_time, tz)
+        state.window_iso = (window.start.isoformat(), window.deadline.isoformat())
     except InvalidWindowError as exc:
-        chat_window = None
+        window = None
         st.warning(str(exc))
+
+    st.pills(
+        "Devices",
+        options=list(DEVICE_PRESETS),
+        format_func=lambda k: f"{DEVICE_ICONS[k]} {DEVICE_PRESETS[k].name}",
+        selection_mode="multi",
+        default=["ev"],
+        key="devices",
+    )
+    if "ev" in (state.get("devices") or []):
+        st.number_input("Car: energy to charge (kWh)", 1.0, 80.0, 20.0, 1.0, key="ev_kwh")
+    st.button(
+        "OK",
+        type="primary",
+        width="stretch",
+        on_click=submit,
+        disabled=window is None or not state.get("devices"),
+    )
+
+    st.space("large")
     st.divider()
-    st.caption(f"Household: {settings.location.name} · PV {settings.household.pv_peak_kw:g} kWp")
+    st.button("✏️ New conversation", on_click=new_conversation, width="stretch")
 
 
-# ----------------------------------------------------------------------------- views
+# ----------------------------------------------------------------------------- main area
 st.title("⚡ Solar & EV Energy Advisor")
 view = st.segmented_control("View", VIEWS, key="view", label_visibility="collapsed") or VIEWS[0]
-
-
-def render_chat() -> None:
-    if not state.chat:
-        with st.chat_message("assistant"):
-            st.markdown(WELCOME)
-        cols = st.columns(len(SUGGESTIONS))
-        for col, suggestion in zip(cols, SUGGESTIONS, strict=True):
-            col.button(
-                suggestion, type="tertiary", on_click=ask, args=(suggestion,), key=f"suggest_{suggestion}"
-            )
-    for message in state.chat:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            if message.get("tools"):
-                with st.expander(f"Tool calls ({len(message['tools'])})"):
-                    st.json(message["tools"])
-
-    question = st.chat_input("Ask about charging, prices, solar, your usage...") or state.pop("pending", None)
-    if not question:
-        return
-    state.chat.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
-    context = window_context(chat_window) if (use_window and chat_window) else None
-    with st.chat_message("assistant"), st.spinner("Thinking..."):
-        result = advisor.invoke(question, context=context, thread_id=state.thread_id)
-        answer = final_answer(result)
-        calls = tool_calls({"messages": result["turn_messages"]})
-        st.markdown(answer)
-        if calls:
-            with st.expander(f"Tool calls ({len(calls)})"):
-                st.json(calls)
-    state.chat.append({"role": "assistant", "content": answer, "tools": calls})
 
 
 def plan_chart(hours: pd.DataFrame, bars: pd.DataFrame) -> alt.VConcatChart:
@@ -210,7 +214,6 @@ def plan_chart(hours: pd.DataFrame, bars: pd.DataFrame) -> alt.VConcatChart:
                 alt.Tooltip("start:T", format="%a %H:%M"),
                 alt.Tooltip("end:T", format="%a %H:%M"),
                 alt.Tooltip("kwh:Q", title="kWh"),
-                alt.Tooltip("solar_kwh:Q", title="from solar (kWh)"),
                 alt.Tooltip("cost_eur:Q", title="cost (EUR)"),
             ],
         )
@@ -219,58 +222,59 @@ def plan_chart(hours: pd.DataFrame, bars: pd.DataFrame) -> alt.VConcatChart:
     return alt.vconcat(top, timeline).resolve_scale(x="shared")
 
 
-def render_planner() -> None:
-    st.subheader("Best time to run your devices")
-    today = now().date()
-    day = st.date_input(
-        "Day", value=today, min_value=today, max_value=today + timedelta(days=MAX_DAYS_AHEAD), key="plan_day"
-    )
-    keys = st.pills(
-        "Devices",
-        options=list(DEVICE_PRESETS),
-        format_func=lambda k: f"{DEVICE_ICONS[k]} {DEVICE_PRESETS[k].name}",
-        selection_mode="multi",
-        default=["ev"],
-        key="plan_devices",
-    )
-    ev_kwh = 20.0
-    if "ev" in (keys or []):
-        ev_kwh = st.number_input("Energy to charge the car (kWh)", 1.0, 80.0, 20.0, 1.0, key="plan_ev_kwh")
-    if not st.button("OK", type="primary", disabled=not keys):
-        if not keys:
-            st.caption("Choose at least one device.")
+def render_best_times() -> None:
+    submitted = state.get("submitted")
+    if not submitted:
+        st.info("Choose the time window and the devices on the left, then press **OK**.")
         return
-
-    devices: list[DeviceSpec] = []
-    for key in keys or []:
-        preset = DEVICE_PRESETS[key]
-        if key == "ev":
-            preset = DeviceSpec(preset.key, preset.name, float(ev_kwh), preset.power_kw, preset.interruptible)
-        devices.append(preset)
+    (start_iso, deadline_iso), devices = submitted
     try:
-        window = day_window(day, now())
-        with st.spinner("Checking prices and the solar forecast..."):
-            plan = services.optimizer.plan_devices(devices, window.start, window.deadline)
+        plan = plan_for(start_iso, deadline_iso, devices, services)
     except Exception as exc:
         st.error(f"Could not plan: {exc}")
         return
-
-    hours = pd.DataFrame(hourly_rows(plan, tz))
+    st.markdown(result_markdown(plan, tz, settings.tariff.feed_in_tariff_eur_per_kwh))
     bars = pd.DataFrame(window_bars(plan, tz))
-    st.caption(f"Window: {window_label(plan, tz)} · prices: {plan.window.curve.source}")
-    if plan.window.curve.is_estimate:
-        st.warning("Some prices are estimates: day-ahead prices are published around 13:00 for the next day.")
     if not bars.empty:
-        st.altair_chart(plan_chart(hours, bars), width="stretch")
+        st.divider()
+        st.altair_chart(plan_chart(pd.DataFrame(hourly_rows(plan, tz)), bars), width="stretch")
         st.caption(
-            "Coloured bars: when each device should run. Grey line: electricity price. Yellow bars: expected "
-            "solar surplus. Devices share the solar surplus, so it is never counted twice."
+            "Coloured bars: when each device runs. Grey line: electricity price. Yellow bars: expected solar surplus."
         )
-    st.dataframe(pd.DataFrame(summary_rows(plan, tz)), hide_index=True, width="stretch")
-    st.caption(
-        "Assumptions: car 11 kW, can pause; dishwasher 1.0 kWh over 2 h and washing machine 0.8 kWh over 2 h, "
-        "each in one go. Own solar power is valued at the feed-in tariff."
-    )
+
+
+def render_chat() -> None:
+    if not state.chat:
+        with st.chat_message("assistant"):
+            st.markdown(WELCOME)
+        cols = st.columns(len(SUGGESTIONS))
+        for col, suggestion in zip(cols, SUGGESTIONS, strict=True):
+            col.button(
+                suggestion, type="tertiary", on_click=ask, args=(suggestion,), key=f"suggest_{suggestion}"
+            )
+    for message in state.chat:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            if message.get("tools"):
+                with st.expander(f"Tool calls ({len(message['tools'])})"):
+                    st.json(message["tools"])
+
+    question = st.chat_input("Ask about charging, prices, solar, your usage...") or state.pop("pending", None)
+    if not question:
+        return
+    state.chat.append({"role": "user", "content": question})
+    with st.chat_message("user"):
+        st.markdown(question)
+    context = window_context(window) if window else None
+    with st.chat_message("assistant"), st.spinner("Thinking..."):
+        result = advisor.invoke(question, context=context, thread_id=state.thread_id)
+        answer = final_answer(result)
+        calls = tool_calls({"messages": result["turn_messages"]})
+        st.markdown(answer)
+        if calls:
+            with st.expander(f"Tool calls ({len(calls)})"):
+                st.json(calls)
+    state.chat.append({"role": "assistant", "content": answer, "tools": calls})
 
 
 def hour_chart(data: pd.DataFrame, column: str, title: str, mark: str, color: str) -> alt.Chart:
@@ -284,20 +288,11 @@ def hour_chart(data: pd.DataFrame, column: str, title: str, mark: str, color: st
 
 
 def render_prices() -> None:
-    today = now().date()
-    day = st.date_input(
-        "Day",
-        value=today,
-        min_value=today,
-        max_value=today + timedelta(days=MAX_DAYS_AHEAD),
-        key="prices_day",
-    )
-    if not st.button("Show", type="primary", key="prices_show"):
+    if window is None:
+        st.info("Choose a deadline after the start on the left.")
         return
     try:
-        window = day_window(day, now())
-        with st.spinner("Fetching prices and the forecast..."):
-            plan = services.optimizer.plan_devices([], window.start, window.deadline)
+        plan = plan_for(window.start.isoformat(), window.deadline.isoformat(), (), services)
     except Exception as exc:
         st.error(f"Could not load data: {exc}")
         return
@@ -316,5 +311,5 @@ def render_prices() -> None:
         st.caption("PV energy expected beyond the house's own base load: free for the car or appliances.")
 
 
-renderers: dict[str, Any] = {VIEWS[0]: render_chat, VIEWS[1]: render_planner, VIEWS[2]: render_prices}
+renderers: dict[str, Any] = {VIEWS[0]: render_best_times, VIEWS[1]: render_chat, VIEWS[2]: render_prices}
 renderers[view]()

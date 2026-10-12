@@ -91,7 +91,7 @@ uv run --extra app streamlit run app/streamlit_app.py   # web app
 | `energy-advisor rag-benchmark [--k 3]` | hit@k and MRR for vector, hybrid and hybrid + re-ranking retrieval on 12 labelled queries. |
 | `energy-advisor ask "<question>" [--export-svg file.svg]` | One answer plus the tool calls the agent made. |
 | `energy-advisor chat` | A conversation: the agent remembers earlier messages (e.g. asks by when, then uses your answer). |
-| `streamlit run app/streamlit_app.py` | Web app: **Planner** (pick a day and devices, press OK, see the best times on a chart), chat with memory and example questions, prices and solar per day. |
+| `streamlit run app/streamlit_app.py` | Web app: choose From, Deadline and devices in the sidebar, press OK, get the best times with costs and savings; chat with memory; prices and solar for the window. |
 | `energy-advisor eval [--limit N] [--cases file.yaml]` | Runs the evaluation cases; writes Markdown, JSON and a heatmap to `reports/`. |
 | `energy-advisor report` | Charts: usage profile vs. solar, daily usage vs. solar, tomorrow's price/solar window, savings. |
 
