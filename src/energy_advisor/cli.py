@@ -187,6 +187,35 @@ def chat() -> None:
         console.print(Panel(Markdown(final_answer(result)), title="Advisor", border_style="green"))
 
 
+@app.command("mcp")
+def mcp_server(
+    transport: Annotated[str, typer.Option(help="'stdio' for local clients (default) or 'http'.")] = "stdio",
+    host: Annotated[str, typer.Option(help="Host for --transport http.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port for --transport http.")] = 8000,
+) -> None:
+    """Run the MCP server, so MCP clients (Claude Desktop, Claude Code, VS Code) can use the advisor's tools."""
+    import logging
+    import sys
+
+    # stdout is the protocol channel in stdio mode: everything else goes to stderr
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING, force=True)
+    if transport not in {"stdio", "http"}:
+        typer.echo("--transport must be 'stdio' or 'http'", err=True)
+        raise typer.Exit(code=2)
+    try:
+        from energy_advisor.mcp_server import build_server
+    except ImportError as exc:
+        typer.echo("The MCP server needs the 'mcp' extra: uv sync --extra mcp", err=True)
+        raise typer.Exit(code=1) from exc
+
+    server = build_server(get_settings())
+    if transport == "stdio":
+        server.run("stdio")
+    else:
+        typer.echo(f"MCP server on http://{host}:{port}/mcp", err=True)
+        server.run("streamable-http", host=host, port=port)
+
+
 @app.command("eval")
 @handle_errors
 def evaluate(

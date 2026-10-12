@@ -14,6 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Multi-device planner (`OptimizerService.plan_devices`): devices share the solar surplus, so it is not counted
   twice.
 
+- MCP server (`energy-advisor mcp`, extra `mcp`): the advisor's tools plus `plan_devices` for any MCP
+  client; stdio and Streamable HTTP; documented in `mcp.md`.
+
 ### Changed
 - Scheduling always searches from now until the user's deadline, for every device. Without a deadline the agent
   plans for the next 24 hours, says so and asks by when it is needed. Removed the assumption that an EV is only

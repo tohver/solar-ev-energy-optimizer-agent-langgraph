@@ -96,7 +96,15 @@ The main area has three views:
   names other times.
 - **Prices & solar**: hourly price and solar surplus for the sidebar's window, shown immediately.
 
-### 1.5 Measure quality: `eval`
+### 1.5 Use the tools from Claude Desktop, Claude Code or VS Code: `mcp`
+
+```bash
+uv run --extra mcp energy-advisor mcp
+```
+
+Starts an MCP server with the advisor's tools. How it works and how to connect a client: [mcp.md](mcp.md).
+
+### 1.6 Measure quality: `eval`
 
 ```bash
 uv run energy-advisor eval                 # 15 cases, report in reports/
@@ -108,7 +116,7 @@ Each case is answered by the agent and scored by an LLM judge (accuracy, relevan
 usefulness) plus deterministic tool-usage metrics. Output: Markdown, JSON and a heatmap PNG. The cases live in
 `src/energy_advisor/evaluation/cases.yaml`; add your own without touching code.
 
-### 1.6 Check retrieval quality: `rag-benchmark`
+### 1.7 Check retrieval quality: `rag-benchmark`
 
 ```bash
 uv run energy-advisor rag-benchmark
@@ -118,7 +126,7 @@ For 12 labelled questions, shows at which rank the correct document appears for 
 search and hybrid search with LLM re-ranking, and summarizes with hit@3 and MRR (mean reciprocal rank: the
 average of 1/rank of the right document, where 1.0 is perfect).
 
-### 1.7 Charts: `report`
+### 1.8 Charts: `report`
 
 ```bash
 uv run energy-advisor report --out docs/img
@@ -127,7 +135,7 @@ uv run energy-advisor report --out docs/img
 Four PNG charts: the average day (consumption per device vs. solar yield), daily consumption vs. solar,
 tomorrow's price curve with the solar forecast and the best solar window, and projected annual savings.
 
-### 1.8 Change the household
+### 1.9 Change the household
 
 Everything is configured in `.env` (see `.env.example`), for example:
 
@@ -283,7 +291,8 @@ so it is tested without an LLM.
 | `timeutils.py` | Time-zone-aware helpers: `make_clock`, `to_utc`, `parse_day`, `parse_local_datetime`, `day_bounds_utc`, `hours_between`, `calendar_lines` | Standard library `zoneinfo`. All arithmetic in UTC because Python does wall-clock arithmetic for local datetimes, which breaks on 23/25-hour DST days. Naive datetimes raise; ruff rule `DTZ` forbids them in the code. |
 | `llm.py` | `make_chat_model`, `make_embeddings` | `langchain-openai`; the only place that knows the API key and base URL. |
 | `logging_config.py` | `configure_logging` | **rich** log handler; third-party libraries only from WARNING up. |
-| `cli.py` | Commands `seed-db`, `build-index`, `rag-benchmark`, `ask`, `chat`, `eval`, `report` | **Typer** (CLI from type hints) and **rich** (tables, panels, SVG export). Thin: parses options, builds services, calls modules, prints. Expected errors (no API key, no index) become a one-line message and exit code 1. |
+| `mcp_server.py` | `build_server`: an MCP server (official `mcp` SDK, `MCPServer`) that registers the agent's tool functions as MCP tools, plus `plan_devices` | Type hints become the JSON schemas, docstrings the descriptions; no own logic, so agent, app, CLI and MCP share one code path. Details: [mcp.md](mcp.md). |
+| `cli.py` | Commands `seed-db`, `build-index`, `rag-benchmark`, `ask`, `chat`, `mcp`, `eval`, `report` | **Typer** (CLI from type hints) and **rich** (tables, panels, SVG export). Thin: parses options, builds services, calls modules, prints. Expected errors (no API key, no index) become a one-line message and exit code 1. |
 
 ### `agent/`: the LangGraph agent
 
@@ -396,7 +405,7 @@ so it is tested without an LLM.
 ## 5. Tests
 
 ```bash
-uv run pytest                  # 203 offline tests, a few seconds
+uv run pytest                  # 209 offline tests, a few seconds
 uv run pytest -m integration   # real Open-Meteo, Energy-Charts, aWATTar
 uv run pytest -m llm           # real LLM and embeddings (costs a little)
 ```
@@ -416,6 +425,7 @@ uv run pytest -m llm           # real LLM and embeddings (costs a little)
 | `test_cli.py` | Help, `seed-db` offline, clean errors without an API key (also for `chat`). |
 | `test_ui_window.py` | Default window now to now + 24 h (also across a clock change), overriding the deadline, the text for the agent. |
 | `test_app.py` | The Streamlit app rendered headless and offline (`AppTest`): sidebar layout (window, devices, OK first, New conversation last, removed texts), deadline following the start, result screen after OK, chat welcome and example questions, "New conversation" opens the chat, prices view without a button, error without an API key. |
+| `test_mcp.py` | MCP server: ten tools with schemas and read-only hints, calls through a real MCP client (in memory), readable errors, a stdio round trip with the server as a separate process. |
 | `test_planner.py` | Devices share the solar surplus (no double counting), user order kept, a device that does not fit gets an error, chart/table rows, day windows. |
 
 How the tests stay offline and deterministic: HTTP calls are answered from recorded JSON files (**respx**) or

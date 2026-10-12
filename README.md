@@ -65,7 +65,8 @@ object and injected, so tests replace the network, the clock and the LLM with fa
 | **Realistic household history** | Generated from real past weather and real past prices: PV from irradiance, heat pump with temperature-dependent COP, EV sessions, appliance cycles. |
 | **Hybrid RAG** | Vector search + BM25, fused with Reciprocal Rank Fusion, then LLM re-ranking with a fallback. Benchmarked with hit@k and MRR. |
 | **Evaluation framework** | 15 YAML test cases, LLM-as-judge plus deterministic tool-usage metrics, Markdown/JSON reports and a heatmap. |
-| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 203 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
+| **MCP server** | The same tools for any MCP client (Claude Desktop, Claude Code, VS Code): one code path for agent, app, CLI and MCP. See [mcp.md](mcp.md). |
+| **Engineering** | src layout, pydantic-settings, SQLAlchemy 2.0, 209 offline tests (96% coverage) (respx, fake LLM, fake embeddings), ruff, mypy strict, pre-commit with secret scanning, GitHub Actions. |
 
 ## Quick start
 
@@ -90,6 +91,7 @@ uv run --extra app streamlit run app/streamlit_app.py   # web app
 | `energy-advisor build-index [--rebuild]` | Splits and embeds `knowledge_base/*.txt` into `data/vectorstore/`. |
 | `energy-advisor rag-benchmark [--k 3]` | hit@k and MRR for vector, hybrid and hybrid + re-ranking retrieval on 12 labelled queries. |
 | `energy-advisor ask "<question>" [--export-svg file.svg]` | One answer plus the tool calls the agent made. |
+| `energy-advisor mcp [--transport http]` | MCP server: the advisor's tools for Claude Desktop, Claude Code, VS Code and other MCP clients. See [mcp.md](mcp.md). |
 | `energy-advisor chat` | A conversation: the agent remembers earlier messages (e.g. asks by when, then uses your answer). |
 | `streamlit run app/streamlit_app.py` | Web app: choose From, Deadline and devices in the sidebar, press OK, get the best times with costs and savings; chat with memory; prices and solar for the window. |
 | `energy-advisor eval [--limit N] [--cases file.yaml]` | Runs the evaluation cases; writes Markdown, JSON and a heatmap to `reports/`. |

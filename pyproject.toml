@@ -29,6 +29,9 @@ viz = ["matplotlib>=3.8", "pandas>=2.2"]
 app = [
     "streamlit>=1.40",
 ]
+mcp = [
+    "mcp>=1.10",
+]
 
 [project.scripts]
 energy-advisor = "energy_advisor.cli:app"
