@@ -26,6 +26,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - `find_cheapest_window` takes an optional `start` (default now) and `deadline` (default start + 24 h); the
   "after dinner = 20:00" prompt rule was removed.
 
+### Fixed
+- The `mcp` extra requires `mcp>=2.3`: the server imports `MCPServer`, which does not exist in `mcp` 1.x.
+
 ## [1.0.0] - 2026-10-12
 
 ### Added

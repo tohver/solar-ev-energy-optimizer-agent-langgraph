@@ -31,7 +31,7 @@ app = [
     "streamlit>=1.40",
 ]
 mcp = [
-    "mcp>=1.10",
+    "mcp>=2.3",
 ]
 
 [project.scripts]
