@@ -1,0 +1,17 @@
+SOLAR SELF-CONSUMPTION AND RENEWABLE INTEGRATION
+
+Self-consumption beats export: Solar power that is exported to the grid earns the feed-in tariff of the German Renewable Energy Sources Act (EEG). For new small systems with partial feed-in it is around 8 cents per kWh and falls slightly every six months. Power bought from the grid costs about 30-40 cents per kWh. Every solar kWh used at home therefore saves far more than it earns when exported.
+
+Self-consumption rate and autarky: The self-consumption rate is the share of the solar power you use yourself; autarky (self-sufficiency) is the share of your consumption covered by solar. A household without battery and flexible loads typically uses 25-35% of its solar power. Shifting the EV, the dishwasher, the washing machine and hot water heating into solar hours can raise this to 50% or more.
+
+Yield in Munich: A south-facing PV system in southern Germany produces about 1,000-1,100 kWh per kWp per year. An 8 kWp system therefore yields around 8,000-9,000 kWh per year, most of it from April to September. On a clear summer day 8 kWp can produce 45-55 kWh, on a dull December day only 2-5 kWh.
+
+Matching loads to the forecast: Check the solar forecast each morning. On sunny days run flexible loads between about 10:00 and 15:00; on cloudy days use the cheapest grid hours instead.
+
+Negative prices and the solar peak law: For PV systems commissioned since February 2025 there is no feed-in payment in hours with negative exchange prices. That is one more reason to use solar power at home at midday.
+
+Plug-in solar: Balcony power plants with up to 800 W inverter power can be registered easily and reduce the base load during the day.
+
+Environmental impact: Each kWh of solar power replaces grid electricity with an average emission factor of roughly 0.36 kg CO2 per kWh in Germany. An 8 kWp system producing 8,500 kWh per year avoids around 3 tonnes of CO2 annually.
+
+Keeping the system efficient: Panels lose about 0.4% of output per degree above 25 degrees Celsius; shading and dirt reduce yield. Monitor the daily production and compare it with the forecast to spot faults.

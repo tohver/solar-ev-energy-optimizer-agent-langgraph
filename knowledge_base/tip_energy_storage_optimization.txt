@@ -1,0 +1,17 @@
+ENERGY STORAGE OPTIMIZATION
+
+Home battery basics: A home battery stores solar surplus or cheap grid electricity for later. Typical sizes are 5-15 kWh with a round-trip efficiency of about 90%: of 10 kWh stored, about 9 kWh come back out.
+
+Charging strategy: Charge from solar surplus first, because solar power that would otherwise be exported only earns the feed-in tariff (around 8 cents per kWh). With a dynamic tariff it can also pay to charge from the grid in very cheap hours, for example at night or when exchange prices are negative, but only if the expected price spread is larger than the efficiency losses.
+
+Discharging strategy: Discharge in the most expensive hours, usually the evening peak (often 17:00-20:00). Keep a reserve of 10-20% if you want backup power.
+
+Battery arbitrage and payback: Arbitrage means storing energy when it is cheap and using it when prices are high. With a typical daily spread of 10-15 cents per kWh between cheap and expensive hours, each cycled kWh saves roughly 8-12 cents after losses. A 10 kWh battery cycled almost every day saves a few hundred euros per year. With installed costs of about 500-800 euros per kWh, the payback period is often 10-15 years; it is shorter if the battery mainly stores solar surplus that would otherwise be exported.
+
+Battery health: Avoid keeping the battery at 100% for long periods, keep it in a frost-free place, and check the warranty (often 10 years or about 6,000 cycles).
+
+Electric car as storage: An EV battery of 50-80 kWh is far larger than a home battery. Vehicle-to-home (V2H), using the car to power the house, needs a bidirectional wallbox and a supported car; in Germany it is still rare. Smart charging (charging when solar or cheap power is available) gives most of the benefit today.
+
+Thermal storage: The hot water tank and the building itself are cheap storage. A heat pump can heat the water tank to a higher temperature or raise the room temperature by 1-2 degrees in solar or cheap hours and then pause during the price peak.
+
+Sizing: As a rule of thumb, about 1 kWh of battery per kWp of PV, and not more than the typical evening and night consumption.

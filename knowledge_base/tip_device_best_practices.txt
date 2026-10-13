@@ -1,0 +1,27 @@
+APPLIANCE BEST PRACTICES FOR A HOUSEHOLD WITH A DYNAMIC TARIFF
+
+Dishwashers, washing machines and dryers are flexible loads: the laundry does not care whether it is washed at 13:00 or at 02:00. With a dynamic electricity tariff the price changes every hour, so the start time of these appliances decides what a cycle costs. Most models have a delay-start timer; connected models can be started by a price or solar signal.
+
+Dishwasher:
+- Run it only when it is full and use the eco programme. Eco takes longer but heats less water and uses about 0.7-1.0 kWh per cycle instead of 1.2-1.5 kWh.
+- Do not pre-rinse dishes under hot running water.
+- Schedule it for the cheapest hours of the day or for midday on sunny days when the PV system produces a surplus. Avoid the evening price peak (typically 17:00-20:00 in winter).
+
+Washing machine:
+- Wash full loads at 30-40 degrees Celsius; modern detergents work well at low temperatures. Most of the energy goes into heating water.
+- A 30 degree eco cycle needs about 0.4-0.6 kWh; a 60 degree cycle needs roughly twice as much.
+- Start it in solar hours (late morning to early afternoon) or in the cheapest grid hours.
+
+Dryer:
+- A heat-pump dryer uses about half the energy of a condenser dryer (roughly 1-1.5 kWh per load).
+- Spin at high speed first and dry outside or on a rack whenever possible.
+- Run it directly after the washing machine while the sun is still shining.
+
+Fridge and freezer:
+- 7 degrees Celsius in the fridge and minus 18 degrees in the freezer are enough. Each degree colder costs about 6% more energy.
+- Defrost the freezer regularly and keep the door seals clean.
+
+Cooking:
+- Use lids, the kettle for boiling water, and induction instead of old hot plates.
+
+Energy label: since 2021 the EU label uses classes A to G again. A class B appliance today is usually better than an old "A+++" appliance.

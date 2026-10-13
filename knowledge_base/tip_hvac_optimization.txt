@@ -1,0 +1,17 @@
+HEAT PUMP AND HEATING OPTIMIZATION
+
+In a German home, heating is the largest energy use. An air-to-water heat pump moves heat from the outside air into the heating water. Its efficiency is the COP (coefficient of performance): a COP of 3.5 means 1 kWh of electricity delivers 3.5 kWh of heat. The COP falls when it is cold outside and when the heating water must be hot.
+
+Flow temperature: The most important setting is the flow temperature, the temperature of the water sent to the radiators or the floor heating. Every degree lower improves efficiency by about 2-3%. Floor heating often works with 30-35 degrees Celsius; radiators often need 40-50 degrees. Lower the heating curve step by step until the rooms are just warm enough.
+
+Hydraulic balancing: A hydraulic balancing makes sure every radiator gets the right amount of water, so the flow temperature can be lower. It is a one-off job for an installer.
+
+Avoid the backup heater: Most heat pumps have an electric heating element as backup. It has a COP of 1, so its heat costs about three times as much as heat from the heat pump. Make sure it only runs in extreme cold or for the legionella cycle.
+
+Using cheap and solar hours: A building stores heat in walls, floors and water. Before an expensive evening, raise the room setpoint by 1-2 degrees Celsius during cheap or sunny hours (pre-heating), then lower it by 1-2 degrees during the most expensive hours. The rooms stay comfortable for several hours. Heat the hot water tank at midday when solar power is available. Many heat pumps have an SG Ready input or an API that a home energy management system can use for this.
+
+Setpoints: About 20 degrees Celsius in living rooms is a good balance of comfort and cost. Night setback by 2-3 degrees saves energy in poorly insulated houses; in well-insulated houses with floor heating a constant temperature is often more efficient.
+
+Maintenance: Keep the outdoor unit free of leaves and snow, check the water pressure, and have the system serviced regularly.
+
+Summer: Many heat pumps can cool slightly through the floor heating. Closing the shutters on sun-facing windows during the day keeps rooms cool without electricity.

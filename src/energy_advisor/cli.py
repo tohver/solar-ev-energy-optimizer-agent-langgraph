@@ -1,0 +1,291 @@
+"""Command-line interface: ``energy-advisor <command>``. Replaces the former Jupyter notebooks."""
+
+import time
+from collections.abc import Callable
+from functools import wraps
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
+
+from energy_advisor.config import MissingApiKeyError, Settings, get_settings
+from energy_advisor.logging_config import configure_logging
+
+app = typer.Typer(help="Solar & EV energy optimizer agent.", no_args_is_help=True, add_completion=False)
+console = Console()
+
+
+def _settings() -> Settings:
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    return settings
+
+
+def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Turn expected user errors into a short message and exit code 1 instead of a traceback."""
+    from energy_advisor.rag.ingest import IndexExistsError
+    from energy_advisor.rag.knowledge_base import IndexNotBuiltError
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return func(*args, **kwargs)
+        except (MissingApiKeyError, IndexNotBuiltError, IndexExistsError, FileNotFoundError) as exc:
+            console.print(f"[bold red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from exc
+
+    return wrapper
+
+
+# ----------------------------------------------------------------------------- data
+@app.command("seed-db")
+@handle_errors
+def seed_db(
+    days: Annotated[
+        int, typer.Option(min=1, max=90, help="Number of days of history, ending yesterday.")
+    ] = 30,
+    seed: Annotated[int, typer.Option(help="Random seed; the same seed gives the same data.")] = 42,
+) -> None:
+    """Create the household's history (usage, solar) from past weather and prices; replaces old data."""
+    from datetime import timedelta
+
+    from energy_advisor.data.seed import build_history, seed_database
+    from energy_advisor.services.container import build_services
+
+    settings = _settings()
+    services = build_services(settings)
+    yesterday = services.clock().date() - timedelta(days=1)
+    with console.status("Fetching past weather and prices..."):
+        history = build_history(
+            services.weather, services.prices, settings.household, settings.location.tz, days, yesterday, seed
+        )
+    result = seed_database(services.repository, history)
+    console.print(
+        f"[green]Database ready:[/] {settings.paths.db}\n"
+        f"  {result.first_day} .. {result.last_day}: {result.usage_rows} usage rows, "
+        f"{result.generation_rows} solar rows (replaced {sum(result.deleted.values())} old rows)\n"
+        f"  weather: {result.weather_source} | prices: {result.price_source}"
+    )
+
+
+# ----------------------------------------------------------------------------- RAG
+@app.command("build-index")
+@handle_errors
+def build_index_cmd(
+    rebuild: Annotated[bool, typer.Option("--rebuild", help="Replace an existing index.")] = False,
+) -> None:
+    """Embed the knowledge-base documents into the Chroma vector store."""
+    from energy_advisor.llm import make_embeddings
+    from energy_advisor.rag.ingest import build_index
+
+    settings = _settings()
+    with console.status("Embedding documents..."):
+        result = build_index(
+            settings.paths.knowledge_base,
+            settings.paths.vectorstore,
+            make_embeddings(settings),
+            settings.rag,
+            rebuild,
+        )
+    console.print(
+        f"[green]Index ready:[/] {result.documents} documents, {result.chunks} chunks in {result.persist_dir}"
+    )
+
+
+@app.command("rag-benchmark")
+@handle_errors
+def rag_benchmark(k: Annotated[int, typer.Option(min=1, help="Cut-off for hit@k.")] = 3) -> None:
+    """Compare vector, hybrid and hybrid + re-ranking retrieval on labelled queries (hit@k, MRR)."""
+    from energy_advisor.rag.benchmark import METHODS, run_benchmark
+    from energy_advisor.services.container import build_services
+
+    services = build_services(_settings())
+    with console.status("Running retrieval benchmark (makes LLM calls)..."):
+        rows, summary = run_benchmark(services.knowledge_base, k=k)
+
+    detail = Table(title="Rank of the expected document (- = not in top k)")
+    detail.add_column("query")
+    for m in METHODS:
+        detail.add_column(m, justify="right")
+    for row in rows:
+        detail.add_row(str(row["query"]), *[str(row[m] or "-") for m in METHODS])
+    console.print(detail)
+
+    table = Table(title=f"Retrieval quality (k={k})")
+    for col in ("method", f"hit@{k}", "MRR"):
+        table.add_column(col)
+    for s in summary:
+        table.add_row(s.method, f"{s.hit_at_k:.2f}", f"{s.mrr:.2f}")
+    console.print(table)
+
+
+# ----------------------------------------------------------------------------- agent
+@app.command()
+@handle_errors
+def ask(
+    question: Annotated[str, typer.Argument(help="Your question, in quotes.")],
+    context: Annotated[
+        str | None, typer.Option(help="Extra context; defaults to the configured location.")
+    ] = None,
+    show_tools: Annotated[bool, typer.Option(help="Print the tool calls the agent made.")] = True,
+    export_svg: Annotated[Path | None, typer.Option(help="Also save the output as an SVG image.")] = None,
+) -> None:
+    """Ask the energy advisor a question."""
+    from energy_advisor.agent.graph import EnergyAdvisor
+    from energy_advisor.agent.trace import final_answer, tool_calls
+
+    settings = _settings()
+    advisor = EnergyAdvisor.from_settings(settings)
+    started = time.perf_counter()
+    with console.status("Thinking..."):
+        result = advisor.invoke(question, context=context)
+    elapsed = time.perf_counter() - started
+
+    out = Console(record=True, width=110) if export_svg else console
+    out.print(f"[bold]Question:[/] {question}")
+    if show_tools:
+        table = Table(title=f"Tool calls ({elapsed:.1f} s total)", show_lines=False)
+        table.add_column("tool", style="cyan")
+        table.add_column("arguments")
+        for call in tool_calls(result):
+            args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
+            table.add_row(call["name"], args)
+        out.print(table)
+    out.print(Panel(Markdown(final_answer(result)), title="Answer", border_style="green"))
+    if export_svg:
+        export_svg.parent.mkdir(parents=True, exist_ok=True)
+        out.save_svg(str(export_svg), title="energy-advisor ask")
+        console.print(f"[green]Saved:[/] {export_svg}")
+
+
+@app.command()
+@handle_errors
+def chat() -> None:
+    """Talk to the advisor in a conversation (it remembers earlier messages). Type 'exit' to quit."""
+    from energy_advisor.agent.graph import EnergyAdvisor
+    from energy_advisor.agent.trace import final_answer, tool_calls
+
+    advisor = EnergyAdvisor.from_settings(_settings())
+    thread_id = advisor.new_thread_id()
+    console.print("[bold]Energy advisor[/] - ask a question; 'exit' to quit.")
+    while True:
+        try:
+            question = console.input("[bold cyan]You:[/] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if question.lower() in {"", "exit", "quit"}:
+            break
+        with console.status("Thinking..."):
+            result = advisor.invoke(question, thread_id=thread_id)
+        for call in tool_calls({"messages": result["turn_messages"]}):
+            args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
+            console.print(f"  [dim]tool: {call['name']}({args})[/]")
+        console.print(Panel(Markdown(final_answer(result)), title="Advisor", border_style="green"))
+
+
+@app.command("mcp")
+def mcp_server(
+    transport: Annotated[str, typer.Option(help="'stdio' for local clients (default) or 'http'.")] = "stdio",
+    host: Annotated[str, typer.Option(help="Host for --transport http.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port for --transport http.")] = 8000,
+) -> None:
+    """Run the MCP server, so MCP clients (Claude Desktop, Claude Code, VS Code) can use the advisor's tools."""
+    import logging
+    import sys
+
+    # stdout is the protocol channel in stdio mode: everything else goes to stderr
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING, force=True)
+    if transport not in {"stdio", "http"}:
+        typer.echo("--transport must be 'stdio' or 'http'", err=True)
+        raise typer.Exit(code=2)
+    try:
+        from energy_advisor.mcp_server import build_server
+    except ImportError as exc:
+        typer.echo("The MCP server needs the 'mcp' extra: uv sync --extra mcp", err=True)
+        raise typer.Exit(code=1) from exc
+
+    server = build_server(get_settings())
+    if transport == "stdio":
+        server.run("stdio")
+    else:
+        typer.echo(f"MCP server on http://{host}:{port}/mcp", err=True)
+        server.run("streamable-http", host=host, port=port)
+
+
+@app.command("eval")
+@handle_errors
+def evaluate(
+    cases_file: Annotated[
+        Path | None, typer.Option("--cases", help="YAML file with cases (default: bundled).")
+    ] = None,
+    limit: Annotated[int | None, typer.Option(min=1, help="Run only the first N cases.")] = None,
+    out: Annotated[Path | None, typer.Option(help="Output folder (default: reports/).")] = None,
+    no_optimizer: Annotated[
+        bool, typer.Option("--no-optimizer", help="Ablation: run without the scheduling tools.")
+    ] = False,
+) -> None:
+    """Run the evaluation cases, score them (LLM judge + tool usage) and write a report."""
+    from energy_advisor.agent.graph import EnergyAdvisor
+    from energy_advisor.evaluation.cases import load_cases
+    from energy_advisor.evaluation.judge import LLMJudge
+    from energy_advisor.evaluation.report import ALL_METRICS, generate_report, render_markdown, save_report
+    from energy_advisor.evaluation.runner import CaseResult, run_evaluation
+    from energy_advisor.llm import make_chat_model
+    from energy_advisor.services.container import build_services
+
+    settings = _settings()
+    services = build_services(settings)
+    advisor = EnergyAdvisor.from_settings(settings, services, optimizer=not no_optimizer)
+    judge = LLMJudge.from_llm(make_chat_model(settings, settings.llm.judge_model))
+    cases = load_cases(cases_file)[:limit]
+
+    def progress(r: CaseResult) -> None:
+        console.print(
+            f"  {r.test_id:<16} response={r.response_eval.overall:.2f}  "
+            f"tools(appropriateness={r.tool_eval.appropriateness:.2f}, completeness={r.tool_eval.completeness:.2f})"
+        )
+
+    variant = "without optimizer tools" if no_optimizer else "with optimizer tools"
+    console.print(f"Running {len(cases)} cases {variant} (judge: {settings.llm.judge_model})...")
+    results = run_evaluation(advisor, judge, cases, now=services.clock, on_result=progress)
+    report = generate_report(results, now=services.clock())
+    out_dir = out or settings.paths.reports
+    paths = save_report(report, results, out_dir)
+
+    try:
+        from energy_advisor.viz.charts import save_evaluation_heatmap
+
+        rows = [row.model_dump() for row in report.per_test]
+        paths["heatmap"] = save_evaluation_heatmap(rows, ALL_METRICS, paths["markdown"].with_suffix(".png"))
+    except ImportError:
+        console.print("[yellow]Install the 'viz' extra for the heatmap: uv sync --extra viz[/]")
+
+    console.print(Markdown(render_markdown(report)))
+    for kind, path in paths.items():
+        console.print(f"[green]{kind}:[/] {path}")
+
+
+@app.command()
+@handle_errors
+def report(
+    out: Annotated[Path | None, typer.Option(help="Output folder (default: reports/charts).")] = None,
+) -> None:
+    """Generate the charts (usage profile, usage vs. solar, tomorrow's window, savings) as PNG files."""
+    try:
+        from energy_advisor.viz.charts import generate_charts
+    except ImportError as exc:
+        console.print("[red]Charts need the 'viz' extra:[/] uv sync --extra viz")
+        raise typer.Exit(code=1) from exc
+    from energy_advisor.services.container import build_services
+
+    settings = _settings()
+    for path in generate_charts(build_services(settings), out or settings.paths.reports / "charts"):
+        console.print(f"[green]chart:[/] {path}")
+
+
+if __name__ == "__main__":
+    app()

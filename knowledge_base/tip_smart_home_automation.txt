@@ -1,0 +1,20 @@
+SMART HOME AUTOMATION TIPS
+
+Automation turns good intentions into reliable savings: rules run every day, even when nobody thinks about prices.
+
+Home energy management system (HEMS): A HEMS reads the solar production, the household consumption and the dynamic electricity price, and controls the wallbox, the heat pump and the battery. Typical interfaces are SG Ready and EEBus for heat pumps and OCPP or vendor APIs for wallboxes. A smart meter (intelligent metering system) is required for a dynamic tariff and for the section 14a grid fee benefits.
+
+Useful rules:
+- "Start the dishwasher when the solar surplus exceeds 1.5 kW, at the latest at 22:00."
+- "Charge the EV in the cheapest hours before the departure time, or with solar surplus."
+- "Raise the hot water target temperature when solar surplus is available."
+- "Lower the room setpoint by 1 degree during the three most expensive hours of the day."
+Combine the weather forecast with the published day-ahead prices to plan the next day after 13:00.
+
+Smart plugs and standby: Put TVs, consoles, printers and chargers on smart plugs or switchable power strips that turn off at night. Smart plugs with metering also reveal hidden consumers such as an old freezer.
+
+Heating automation: Smart radiator thermostats lower the temperature in empty rooms and when windows are open. Use schedules and presence detection to pre-heat before people come home.
+
+Monitoring: Review the weekly energy report: daily consumption, self-consumption rate, the most expensive hours in which you used electricity, and unusual night consumption. A sudden rise often points to a faulty device or a forgotten setting.
+
+Lighting: Motion sensors in hallways, the basement and outside switch LED lights only when needed.

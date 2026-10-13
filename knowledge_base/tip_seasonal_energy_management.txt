@@ -1,0 +1,11 @@
+SEASONAL ENERGY MANAGEMENT IN MUNICH
+
+Winter (December to February): Heating dominates. Recommended thermostat temperatures are about 20 degrees Celsius in living rooms and 17-18 degrees in bedrooms. Solar production is low: days have only about 8 hours of daylight and an 8 kWp system may produce just 2-10 kWh per day, sometimes nothing when snow covers the panels. Expect more grid electricity and use the cheapest hours of the dynamic tariff for the EV and appliances. Pre-heat in cheap hours before the expensive evening, ventilate briefly with fully open windows, and close the shutters at night. Cold also lowers the EV range, so plan a little more charging.
+
+Spring and autumn (March to May, September to November): Mild weather and good solar yield on clear days. The heat pump runs mainly in the mornings and evenings; heat the hot water tank at midday with solar power. This is the best time to service the heat pump and adjust the heating curve. Electricity prices at midday are often very low on sunny weekends.
+
+Summer (June to August): No space heating; the heat pump only heats water. Long days (sunrise around 05:15, sunset around 21:15) give high solar yields of up to 50 kWh per day for 8 kWp. Charge the EV and run appliances at midday, close the shutters on hot days instead of cooling, and plan holidays: switch off standby devices and set the heat pump to holiday mode.
+
+Price patterns over the year: In winter the evening peak is pronounced and midday prices are moderate. In summer midday prices are often the lowest of the day and can be negative on sunny weekends; nights are relatively expensive in comparison.
+
+Hot water through the year: Keep it at about 48-50 degrees Celsius with a regular legionella cycle, and heat it when solar power or cheap electricity is available.
