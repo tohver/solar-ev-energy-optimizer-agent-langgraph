@@ -230,6 +230,7 @@ def evaluation_heatmap(rows: Sequence[dict[str, Any]], metrics: Sequence[str]) -
     fig, ax = plt.subplots(figsize=(9, 0.42 * len(data) + 1.6))
     im = ax.imshow(data.values, cmap=cmap, vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(range(len(metrics)), [m.replace("_", "\n") for m in metrics], fontsize=9, color=TEXT_2)
+    ax.xaxis.tick_top()  # metric names above the columns, where the eye starts reading
     ax.set_yticks(range(len(data)), data.index, fontsize=9, color=TEXT_2)
     ax.tick_params(which="both", length=0)
     for spine in ax.spines.values():
