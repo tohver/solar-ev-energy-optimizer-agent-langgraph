@@ -1,7 +1,7 @@
 # Solar & EV Energy Optimizer Agent
 
 [![CI](https://github.com/tohver/solar-ev-energy-optimizer-agent-langgraph/actions/workflows/ci.yml/badge.svg)](https://github.com/tohver/solar-ev-energy-optimizer-agent-langgraph/actions/workflows/ci.yml)
-![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Ruff](https://img.shields.io/badge/lint-ruff-261230)
 ![mypy strict](https://img.shields.io/badge/types-mypy%20strict-2a6db2)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
@@ -18,7 +18,7 @@ Three ways to use it, one code path behind all of them:
 - a **CLI** with a LangGraph agent that remembers the conversation;
 - an **MCP server**, so Claude Desktop, Claude Code or VS Code can use the advisor's tools.
 
-![Example answer](docs/img/ask-demo.svg)
+![Example answer of the CLI agent (energy-advisor ask)](docs/img/ask-demo.svg)
 
 ## Documentation
 
@@ -32,7 +32,7 @@ Three ways to use it, one code path behind all of them:
 ## What it does
 
 - **Finds the best time to run devices**: the cheapest hours before a deadline for the EV, the dishwasher or
-  the washing machine, combining hourly prices with the expected solar surplus. Several devices are planned
+  the washing machine, combining 15-minute prices with the expected solar surplus. Several devices are planned
   together and share the solar surplus, so it is never counted twice.
 - **Uses real market data**: day-ahead prices for the DE-LU bidding zone (Energy-Charts, aWATTar), converted to
   the price a household pays; estimates are clearly labelled when tomorrow's prices are not published yet.
@@ -68,6 +68,7 @@ flowchart LR
     APP --> A
     CLI[CLI<br/>ask / chat] --> A[EnergyAdvisor<br/>LangGraph agent + memory]
     MCP[MCP server] --> T
+    MCP --> PL
     A <--> T[Tools]
     T --> O[Optimizer<br/>cheapest window, PV estimate]
     PL --> O
@@ -122,6 +123,8 @@ Prices, weather, the solar forecast and the optimizer work without an API key (w
 
 ## Commands
 
+Run each command with `uv run` in front (e.g. `uv run energy-advisor chat`), or activate `.venv` first.
+
 | Command | What it does |
 |---|---|
 | `energy-advisor seed-db [--days 30] [--seed 42]` | Household history (max. 90 days) from past Open-Meteo weather and past day-ahead prices; re-running replaces it. |
@@ -156,8 +159,9 @@ the schedule, its cost and the saving come from tested code, and the answer only
 
 ![Evaluation scores per test](docs/img/eval-heatmap.png)
 
-Full report: [docs/evaluation-report.md](docs/evaluation-report.md). Weakest point: **tool completeness (0.66)**:
-the agent often skips the mandatory knowledge-base search. These are single runs with a non-deterministic LLM
+Full report: [docs/evaluation-report.md](docs/evaluation-report.md). Weakest point: **tool usage (0.67)**:
+the agent often skips the mandatory knowledge-base search (tool completeness 0.66) and sometimes calls tools
+the test case does not list. These are single runs with a non-deterministic LLM
 (scores vary by about ±0.1). The numbers were measured before the later changes to deadline handling and
 conversation memory; `energy-advisor eval` reproduces them with the current version.
 
@@ -221,8 +225,8 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
   RAG uses deterministic fake embeddings. The web app is rendered headless with Streamlit's `AppTest`, and the
   MCP server is tested through a real MCP client, in memory and as a separate process over stdio.
 - Regression tests carry IDs (F-02 … F-11), so fixed bugs cannot silently come back.
-- GitHub Actions runs the lock check, lint, format check, type check and tests (coverage ≥ 85 %) on every push
-  and pull request.
+- GitHub Actions runs the lock check, lint, format check, type check and tests (coverage ≥ 85 %) on every pull
+  request and every push to `main`.
 
 ## Limitations and assumptions
 
@@ -238,10 +242,10 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
 - Conversations are kept in memory only (until the CLI or the web server stops). The web app and the MCP HTTP
   mode have no authentication and are meant for local use.
 - The agent can still misread ambiguous dates, e.g. "by 7:00 on Monday" asked on a Monday evening.
-- `gpt-4o-mini` does not always follow the prompt's tool rules (see tool completeness above). LLM-as-judge
+- `gpt-4o-mini` does not always follow the prompt's tool rules (see tool usage above). LLM-as-judge
   scores are indicative; the judge itself sometimes misreads dates.
 
-## Data sources and licences
+## Data sources and licenses
 
 - Day-ahead prices: [Energy-Charts](https://energy-charts.info) (Fraunhofer ISE), data Bundesnetzagentur |
   SMARD.de, **CC BY 4.0**; [aWATTar](https://www.awattar.de) market data API.
